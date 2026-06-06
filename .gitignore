@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build
+dist/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+server/.env
+
+# Vite
+.vite/
+
+# OS & editor
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+.video-frames/
