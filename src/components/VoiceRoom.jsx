@@ -14,6 +14,7 @@ export default function VoiceRoom({
   children,
 }) {
   const managerRef = useRef(null);
+  const userMicPrefRef = useRef(null);
   const [voiceError, setVoiceError] = useState(null);
   const [micError, setMicError] = useState(null);
   const [micEnabled, setMicEnabled] = useState(false);
@@ -98,21 +99,36 @@ export default function VoiceRoom({
     };
   }, [roomName, participantName, participantIdentity, manager, onVoiceStatus]);
 
-  // Seat change: toggle mic only — avoids reconnect glitches.
+  useEffect(() => {
+    userMicPrefRef.current = null;
+  }, [roomName]);
+
+  // Seat change: seating permission only — user mic preference persists across moves.
   useEffect(() => {
     if (!voiceReady) return;
     (async () => {
-      await manager.applySeatState(isSeated && seatMicAllowed);
-      if (isSeated && !seatMicAllowed) {
+      await manager.applySeatState(isSeated);
+      if (!isSeated) {
+        setMicEnabled(false);
+        return;
+      }
+      if (!seatMicAllowed) {
         await manager.setMicrophoneEnabled(false);
         setMicEnabled(false);
         setMicError(null);
         return;
       }
+      const wantMic = userMicPrefRef.current === true;
+      if (wantMic && !manager.isMicrophoneEnabled) {
+        const ok = await manager.setMicrophoneEnabled(true);
+        setMicEnabled(ok);
+        setMicError(ok ? null : "Tap mic to enable your microphone");
+        return;
+      }
       setMicEnabled(manager.isMicrophoneEnabled);
-      if (isSeated && !manager.isMicrophoneEnabled) {
+      if (!manager.isMicrophoneEnabled) {
         setMicError("Tap mic to enable your microphone");
-      } else if (manager.isMicrophoneEnabled) {
+      } else {
         setMicError(null);
       }
     })();
@@ -165,6 +181,7 @@ export default function VoiceRoom({
         const next = !manager.isMicrophoneEnabled;
         const ok = await manager.setMicrophoneEnabled(next);
         if (ok) {
+          userMicPrefRef.current = next;
           setMicEnabled(next);
         }
       },

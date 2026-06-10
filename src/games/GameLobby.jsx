@@ -15,12 +15,14 @@ export default function GameLobby({
 }) {
   const live = liveMiniGames();
   const needTwoForDraw = selectedType === "draw" && joinedPlayers.length < 2;
+  const needTwoForWordle = selectedType === "wordle" && joinedPlayers.length < 2;
   const canStart =
     canHost
     && socketReady
     && selectedType
     && joinedPlayers.length >= 1
     && !needTwoForDraw
+    && !needTwoForWordle
     && !gameInProgress;
 
   const selectedMeta = live.find((g) => g.id === selectedType);
@@ -112,6 +114,9 @@ export default function GameLobby({
         {needTwoForDraw && (
           <p className="game-lobby-hint-warn">Draw & Guess needs at least 2 players joined</p>
         )}
+        {needTwoForWordle && (
+          <p className="game-lobby-hint-warn">Word Battle needs at least 2 players joined</p>
+        )}
 
         <div className="game-lobby-joined-feed">
           <p className="game-lobby-joined-feed-title">Joined ({joinedPlayers.length})</p>
@@ -132,6 +137,11 @@ export default function GameLobby({
         {selectedType === "draw" && joined && !gameInProgress && (
           <p className="game-lobby-draw-hint">
             When the host starts: one person draws, everyone else guesses in <strong>chat</strong>. Fastest correct guess wins the most points.
+          </p>
+        )}
+        {selectedType === "wordle" && joined && !gameInProgress && (
+          <p className="game-lobby-draw-hint">
+            Everyone guesses the <strong>same 5-letter word</strong>. Fewest attempts + fastest solve wins the round.
           </p>
         )}
       </div>

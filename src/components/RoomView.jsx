@@ -91,7 +91,7 @@ import {
   loadPrimaryCoupleBond,
   partnerUserId,
 } from "../relationships.js";
-import { ADJACENT_SEAT_PAIRS, ADMIN_SEAT, GAMES_MODE_SEAT_LAYOUT, HOST_SEAT, PARTNER_SEAT_NUMBERS, ROOM_SEAT_COUNT, SEAT_LAYOUT } from "../roomSeats.js";
+import { ADJACENT_SEAT_PAIRS, ADMIN_SEAT, GAMES_MODE_SEAT_LAYOUT, HOST_SEAT, PARTNER_SEAT_NUMBERS, ROOM_SEAT_COUNT, SEAT_LAYOUT, VIDEO_MODE_SEAT_LAYOUT } from "../roomSeats.js";
 import {
   blacklistUser,
   formatKickCooldown,
@@ -112,7 +112,7 @@ import AddVideoSheet from "./AddVideoSheet.jsx";
 import {
   addRoomVideoFromUrl,
   clearRoomVideo,
-  parseVideoSync,
+  readRoomVideo,
   syncRoomVideoPlayback,
 } from "../video/roomVideo.js";
 import { connectSocket, emitAck } from "../lib/socket.js";
@@ -1294,6 +1294,7 @@ function RoomContent({
       recipientName = null,
       reward = 0,
       fx = "fly",
+      lottie = null,
       usePfp = true,
     }) => {
       if (!seatNumber) return;
@@ -1308,25 +1309,28 @@ function RoomContent({
           recipientName,
           reward,
           fx,
-          usePfp,
+          lottie,
+          usePfp: lottie ? false : usePfp,
         });
         if (!effect) return;
         setGiftEffects((prev) => [...prev.filter((e) => e.id !== effect.id), effect].slice(-3));
         playPfpGiftSound(roomMeta.gift_sound !== false);
+        const emoteMs = effect.fx === "rose-lottie" ? 1200 : 900;
+        setSeatEmoteAnim((prev) => ({
+          ...prev,
+          [seatNumber]: { anim: "gift", until: Date.now() + emoteMs },
+        }));
+        setTimeout(() => {
+          setSeatEmoteAnim((prev) => {
+            const next = { ...prev };
+            if (next[seatNumber]?.anim === "gift") delete next[seatNumber];
+            return next;
+          });
+        }, emoteMs);
+        if (effect.fx === "rose-lottie") return;
         setTimeout(() => {
           const hit = buildGiftHit({ emoji, seatNumber, reward, fx: effect.fx });
           if (hit) setGiftHits((prev) => [...prev.slice(-6), hit]);
-          setSeatEmoteAnim((prev) => ({
-            ...prev,
-            [seatNumber]: { anim: "gift", until: Date.now() + 900 },
-          }));
-          setTimeout(() => {
-            setSeatEmoteAnim((prev) => {
-              const next = { ...prev };
-              if (next[seatNumber]?.anim === "gift") delete next[seatNumber];
-              return next;
-            });
-          }, 900);
         }, effect.duration - 120);
       });
     },
@@ -1385,8 +1389,12 @@ function RoomContent({
 
   const playSeatEmote = useCallback((seatNumber, emote) => {
     if (!seatNumber || !emote) return;
-    const seatEl = document.querySelector(`[data-seat-number="${seatNumber}"] .seat-avatar`);
-    const stageEl = document.querySelector(".seats-stage");
+    const seatEl =
+      document.querySelector(`[data-seat-number="${seatNumber}"] .seat-avatar`) ||
+      document.querySelector(`[data-seat-number="${seatNumber}"] .games-seat-avatar`);
+    const stageEl =
+      document.querySelector(".seats-stage") ||
+      document.querySelector(".games-seat-strip");
     if (!seatEl || !stageEl) return;
     const seatRect = seatEl.getBoundingClientRect();
     const stageRect = stageEl.getBoundingClientRect();
@@ -1432,8 +1440,8 @@ function RoomContent({
       const seat = findSeatForRecipient(seats, parsed.recipientName);
       const quantity = giftQuantityFromName(parsed.giftName);
       const giftNameClean = parsed.giftName.replace(/\s+x\d+$/i, "");
+      const giftRow = findGiftByName(parsed.giftName);
       if (premiumValueForName(parsed.giftName, parsed.reward) >= 500) {
-        const giftRow = findGiftByName(parsed.giftName);
         if (msg.user_id !== userId) {
           playPremiumGiftEffect({
             emoji: parsed.emoji,
@@ -1458,7 +1466,9 @@ function RoomContent({
           senderName: parsed.senderName || msg.nickname,
           recipientName: parsed.recipientName,
           reward: parsed.reward,
-          usePfp: true,
+          fx: giftRow?.fx,
+          lottie: giftRow?.lottie ?? null,
+          usePfp: !giftRow?.lottie,
         });
       }
     }
@@ -2004,7 +2014,9 @@ function RoomContent({
           senderName: senderLabel,
           recipientName: target.nickname,
           reward: totalReward,
-          usePfp: true,
+          fx: gift.fx,
+          lottie: gift.lottie ?? null,
+          usePfp: !gift.lottie,
         });
         if (svgaUrl) setSvgaGift({ url: svgaUrl, id: `${Date.now()}` });
         playGiftSound(roomMeta.gift_sound !== false);
@@ -2586,9 +2598,7 @@ function RoomContent({
       }
       const modePatch = { room_mode: mode };
       if (previousMode === "video" && mode !== "video") {
-        modePatch.video_youtube_id = null;
-        modePatch.video_title = null;
-        modePatch.video_sync = {};
+        modePatch.video_room = {};
       }
       const updated = await updateRoomSettings(roomMeta.id, modePatch);
       setRoomMeta((prev) => ({ ...prev, ...updated, room_mode: mode }));
@@ -2634,7 +2644,7 @@ function RoomContent({
       const updated = await addRoomVideoFromUrl(roomMeta.id, urlOrId);
       setRoomMeta((prev) => ({ ...prev, ...updated }));
       setVideoAddOpen(false);
-      const title = updated.video_title || "YouTube video";
+      const title = readRoomVideo(updated).videoTitle || "YouTube video";
       await postSystemMessage(room.id, `📺 Now playing: ${title}`);
       await loadMessages(room.id);
       setToast("Video added for everyone");
@@ -2648,7 +2658,7 @@ function RoomContent({
   async function handleVideoSyncPlayback(sync) {
     if (!canChangeMode || !room?.id) return;
     try {
-      const updated = await syncRoomVideoPlayback(roomMeta.id, sync);
+      const updated = await syncRoomVideoPlayback(roomMeta.id, sync, roomMeta);
       setRoomMeta((prev) => ({ ...prev, ...updated }));
     } catch {
       /* non-blocking */
@@ -2808,12 +2818,13 @@ function RoomContent({
   const currentRoomMode = roomMeta.room_mode ?? "normal";
   const isGamesRoom = currentRoomMode === "games";
   const isVideoRoom = currentRoomMode === "video";
-  const roomVideoSync = useMemo(
-    () => parseVideoSync(roomMeta.video_sync),
-    [roomMeta.video_sync],
-  );
+  const roomVideo = useMemo(() => readRoomVideo(roomMeta), [roomMeta]);
   const inGameLayout = isGamesRoom || gamesSessionActive || gamesWaitingActive;
-  const activeSeatLayout = inGameLayout ? GAMES_MODE_SEAT_LAYOUT : SEAT_LAYOUT;
+  const activeSeatLayout = inGameLayout
+    ? GAMES_MODE_SEAT_LAYOUT
+    : isVideoRoom
+      ? VIDEO_MODE_SEAT_LAYOUT
+      : SEAT_LAYOUT;
   const walkieSession = voice?.walkieSession;
   const walkiePeerId = walkieSession?.outgoingTargetId || walkieSession?.incomingFromId || null;
   const walkiePeerSeat = walkiePeerId ? seats.find((s) => s.user_id === walkiePeerId) : null;
@@ -2986,13 +2997,13 @@ function RoomContent({
           </div>
         )}
 
-        <div className={`stage-split ${inGameLayout ? "stage-split--games" : ""}`}>
+        <div className={`stage-split ${inGameLayout ? "stage-split--games" : ""} ${isVideoRoom ? "stage-split--video" : ""}`}>
           <div className="stage-split-seats">
         {isVideoRoom && (
           <VideoRoomPanel
-            videoId={roomMeta.video_youtube_id}
-            videoTitle={roomMeta.video_title}
-            videoSync={roomVideoSync}
+            videoId={roomVideo.videoId}
+            videoTitle={roomVideo.videoTitle}
+            videoSync={roomVideo.videoSync}
             canControl={canChangeMode}
             onAddVideo={() => {
               if (!canChangeMode) {
@@ -3035,19 +3046,23 @@ function RoomContent({
         )}
 
         {inGameLayout && (
-          <GamesSeatStrip
-            seatMap={seatMap}
-            userId={userId}
-            speakingSeatNumbers={speakingSeatNumbers}
-            seatBusy={seatBusy}
-            onSeatClick={handleSeatClick}
-            seatAvatarUrl={seatAvatarUrl}
-            seatInitial={seatInitial}
-          />
+          <div className="games-seat-stage">
+            <SeatEmoteFx reactions={seatReactions} />
+            <GamesSeatStrip
+              seatMap={seatMap}
+              userId={userId}
+              speakingSeatNumbers={speakingSeatNumbers}
+              seatBusy={seatBusy}
+              onSeatClick={handleSeatClick}
+              seatAvatarUrl={seatAvatarUrl}
+              seatInitial={seatInitial}
+              seatEmoteAnim={seatEmoteAnim}
+            />
+          </div>
         )}
 
         {!inGameLayout && (
-        <section className={`seats-stage seats-stage--weplay seats-stage--${currentRoomMode} ${currentRoomMode === "auction" ? "seats-stage--auction" : ""}`}>
+        <section className={`seats-stage seats-stage--weplay seats-stage--${currentRoomMode} ${currentRoomMode === "auction" ? "seats-stage--auction" : ""} ${isVideoRoom ? "seats-stage--video-grid" : ""}`}>
           <GiftAnimation
             effects={giftEffects}
             onDone={(id) => {
@@ -3074,9 +3089,11 @@ function RoomContent({
               className={`seat-row seat-row--fixed ${
                 inGameLayout
                   ? "seat-row--games-line"
-                  : row.length === 2
-                    ? "seat-row--two seat-row--partner"
-                    : "seat-row--quad"
+                  : isVideoRoom
+                    ? "seat-row--video-line"
+                    : row.length === 2
+                      ? "seat-row--two seat-row--partner"
+                      : "seat-row--quad"
               }`}
             >
               {row.map((num) => {
@@ -3092,7 +3109,8 @@ function RoomContent({
                   (!isGlobalRoom && seat?.user_id === room.owner_id && !isEmpty);
                 const isSpeaking = speakingSeatNumbers.has(num);
                 const emoteAnim = seatEmoteAnim[num]?.anim;
-                const isPartnerSlot = partnerSeatNumbers.has(num) || PARTNER_SEAT_NUMBERS.has(num);
+                const isPartnerSlot =
+                  !isVideoRoom && (partnerSeatNumbers.has(num) || PARTNER_SEAT_NUMBERS.has(num));
                 const isInviteSelectable = Boolean(inviteSeatUser && canModerate && isEmpty && !isLocked);
                 const isInviteBlocked = Boolean(inviteSeatUser && canModerate && !isInviteSelectable);
                 const seatProfile = seat?.user_id ? profileMap[seat.user_id] : null;

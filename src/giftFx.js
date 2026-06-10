@@ -167,8 +167,25 @@ export function buildGiftEffect({
   recipientAvatar = null,
   reward = 0,
   fx = "fly",
+  lottie = null,
   usePfp = false,
 }) {
+  if (lottie || fx === "rose-lottie") {
+    const center = seatCenterOnStage(seatNumber);
+    if (!center) return null;
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      emoji,
+      reward: Math.max(0, Math.floor(Number(reward) || 0)),
+      fx: "rose-lottie",
+      lottie,
+      seatNumber,
+      x: center.x,
+      y: center.y,
+      duration: 4000,
+    };
+  }
+
   const flight = usePfp
     ? computePfpFlight(fromSeatNumber, seatNumber)
     : computeGiftFlight(seatNumber);

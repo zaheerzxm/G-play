@@ -13,6 +13,7 @@ export function getRoom(roomId) {
       activeGame: null,
       gameLobby: { selectedType: null, players: [] },
       triviaUsedIds: new Set(),
+      wordleUsedWords: new Set(),
     });
   }
   return rooms.get(roomId);

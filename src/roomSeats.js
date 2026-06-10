@@ -13,6 +13,13 @@ export const SEAT_LAYOUT = [
 export const GAMES_MODE_SEAT_LAYOUT = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]];
 export const GAMES_MODE_SEAT_COUNT = 10;
 
+/** Video mode: 2 rows × 5 seats (WePlay-style under the player) */
+export const VIDEO_MODE_SEAT_LAYOUT = [
+  [1, 2, 3, 4, 5],
+  [6, 7, 8, 9, 10],
+];
+export const VIDEO_MODE_SEAT_COUNT = 10;
+
 export const HOST_SEAT = 1;
 export const ADMIN_SEAT = 2;
 

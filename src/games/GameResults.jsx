@@ -6,7 +6,12 @@ export default function GameResults({
   onReplay,
   onDone,
 }) {
-  const title = gameType === "trivia" ? "Trivia results" : "Draw & Guess results";
+  const title =
+    gameType === "trivia"
+      ? "Trivia results"
+      : gameType === "wordle"
+        ? "Word Battle results"
+        : "Draw & Guess results";
   const winner = leaderboard[0];
 
   return (

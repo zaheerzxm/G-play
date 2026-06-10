@@ -19,7 +19,7 @@ export default function AddVideoSheet({ busy, onSubmit, onClose }) {
           <input
             type="url"
             className="add-video-input"
-            placeholder="https://youtube.com/watch?v=…"
+            placeholder="https://www.youtube.com/watch?v=…"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             autoFocus

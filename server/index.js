@@ -30,6 +30,12 @@ import {
   handleGuess,
   startDrawRound,
 } from "./drawGuess.js";
+import {
+  createWordleGame,
+  handleWordleGuess,
+  startNextWordleRound,
+  startWordleRound,
+} from "./wordle.js";
 
 const PORT = Number(process.env.PORT || process.env.SOCKET_PORT || 3001);
 const DEFAULT_CLIENT_ORIGINS = [
@@ -68,11 +74,16 @@ function personalGameSnapshot(game, userId) {
   return game.snapshot?.(userId) ?? game.toPublic?.() ?? null;
 }
 
+function roomMemberList(roomId) {
+  const room = getRoom(roomId);
+  return [...room.members.values()];
+}
+
 function broadcastGameState(io, roomId, game) {
   const roomState = publicRoomState(roomId);
-  if (game.type === "draw") {
-    const room = getRoom(roomId);
-    for (const m of room.members.values()) {
+  if (game.type === "draw" || game.type === "wordle") {
+    const members = roomMemberList(roomId);
+    for (const m of members) {
       const personal = game.snapshot(m.userId);
       if (m.socketId) {
         io.to(m.socketId).emit("gameStateUpdate", { room: roomState, game: personal });
@@ -87,7 +98,7 @@ function broadcastGameState(io, roomId, game) {
 function broadcastRoom(io, roomId, game = undefined) {
   const roomState = publicRoomState(roomId);
   const active = game === undefined ? getActiveGame(roomId) : game;
-  if (active?.type === "draw") {
+  if (active?.type === "draw" || active?.type === "wordle") {
     broadcastGameState(io, roomId, active);
     return;
   }
@@ -101,6 +112,9 @@ function launchGameFromLobby(game, io, roomId) {
     startDrawRound(game, io, roomId);
   } else if (game.type === "trivia") {
     startTriviaQuestion(game, io, roomId);
+  } else if (game.type === "wordle") {
+    const getMembers = () => roomMemberList(roomId);
+    startWordleRound(game, io, roomId, getMembers);
   }
 }
 
@@ -140,7 +154,7 @@ io.on("connection", (socket) => {
 
       const state = publicRoomState(roomId);
       const activeGame = getActiveGame(roomId);
-      if (activeGame?.type === "draw") {
+      if (activeGame?.type === "draw" || activeGame?.type === "wordle") {
         io.to(roomChannel(roomId)).emit("gameStateUpdate", { room: state });
         socket.emit("gameStateUpdate", {
           room: state,
@@ -175,7 +189,9 @@ io.on("connection", (socket) => {
 
       const room = getRoom(roomId);
       const lobby = ensureGameLobby(room);
-      if (gameType !== "trivia" && gameType !== "draw") throw new Error("Unknown game type");
+      if (gameType !== "trivia" && gameType !== "draw" && gameType !== "wordle") {
+        throw new Error("Unknown game type");
+      }
       lobby.selectedType = gameType;
 
       broadcastRoom(io, roomId);
@@ -262,12 +278,17 @@ io.on("connection", (socket) => {
       if (lobby.selectedType === "draw" && players.length < 2) {
         throw new Error("Draw & Guess needs at least 2 players");
       }
+      if (lobby.selectedType === "wordle" && players.length < 2) {
+        throw new Error("Word Battle needs at least 2 players");
+      }
 
       let game;
       if (lobby.selectedType === "trivia") {
         game = createTriviaGame({ roomId, hostUserId: userId, players });
       } else if (lobby.selectedType === "draw") {
         game = createDrawGuessGame({ roomId, hostUserId: userId, players });
+      } else if (lobby.selectedType === "wordle") {
+        game = createWordleGame({ roomId, hostUserId: userId, players });
       } else {
         throw new Error("Unknown game type");
       }
@@ -346,6 +367,37 @@ io.on("connection", (socket) => {
         }
       }
       ack?.({ ok: true });
+    } catch (e) {
+      ack?.({ ok: false, error: e.message });
+    }
+  });
+
+  socket.on("sendWordleGuess", (payload, ack) => {
+    try {
+      const { roomId, userId, guess } = payload ?? {};
+      const game = getActiveGame(roomId);
+      if (!game || game.type !== "wordle") throw new Error("No Word Battle game");
+      const getMembers = () => roomMemberList(roomId);
+      const result = handleWordleGuess(game, userId, guess, io, roomId, getMembers);
+      if (!result.ok) throw new Error(result.error ?? "Guess not accepted");
+      ack?.({ ok: true, ...result });
+    } catch (e) {
+      ack?.({ ok: false, error: e.message });
+    }
+  });
+
+  socket.on("startNextWordleRound", (payload, ack) => {
+    try {
+      const { roomId, userId } = payload ?? {};
+      if (!canManageGame(roomId, userId)) throw new Error("Only host or admin can start next round");
+      const game = getActiveGame(roomId);
+      if (!game || game.type !== "wordle") throw new Error("No Word Battle game");
+      const getMembers = () => roomMemberList(roomId);
+      if (!startNextWordleRound(game, io, roomId, getMembers)) {
+        throw new Error("Cannot start next round now");
+      }
+      broadcastGameState(io, roomId, game);
+      ack?.({ ok: true, game: game.snapshot(userId) });
     } catch (e) {
       ack?.({ ok: false, error: e.message });
     }

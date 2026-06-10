@@ -11,6 +11,7 @@ export default function GamesSeatStrip({
   onSeatClick,
   seatAvatarUrl,
   seatInitial,
+  seatEmoteAnim = {},
 }) {
   function renderFace(seat, isMine, isEmpty) {
     if (isEmpty) return <span className="games-seat-plus">+</span>;
@@ -37,16 +38,21 @@ export default function GamesSeatStrip({
         const isSpeaking = speakingSeatNumbers?.has(num);
         const isMuted = seat?.mic_on === false;
 
+        const emoteAnim = seatEmoteAnim[num]?.anim;
+
         return (
           <button
             key={num}
             type="button"
+            data-seat-number={num}
             className={`games-seat ${isMine ? "games-seat--mine" : ""} ${isSpeaking ? "games-seat--speaking" : ""} ${isEmpty ? "games-seat--empty" : ""}`}
             disabled={seatBusy}
             onClick={() => onSeatClick(num)}
             aria-label={isEmpty ? `Seat ${num} empty` : seat?.nickname || `Seat ${num}`}
           >
-            <span className="games-seat-avatar">
+            <span
+              className={`games-seat-avatar ${emoteAnim ? `seat-avatar--emote-${emoteAnim}` : ""}`}
+            >
               {renderFace(seat, isMine, isEmpty)}
               {isMuted && !isEmpty && <span className="games-seat-mute" aria-hidden />}
               {isSpeaking && <span className="games-seat-ring" aria-hidden />}

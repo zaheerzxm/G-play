@@ -3,18 +3,22 @@ export function parseYouTubeVideoId(input) {
   const raw = String(input ?? "").trim();
   if (!raw) return null;
 
-  if (/^[\w-]{11}$/.test(raw)) return raw;
+  const bare = raw.match(/^[\w-]{11}$/);
+  if (bare) return bare[0];
+
+  const vParam = raw.match(/(?:[?&]v=|youtu\.be\/|\/embed\/|\/shorts\/)([\w-]{11})/i);
+  if (vParam?.[1]) return vParam[1];
 
   try {
     const url = raw.startsWith("http") ? new URL(raw) : new URL(`https://${raw}`);
-    const host = url.hostname.replace(/^www\./, "");
+    const host = url.hostname.replace(/^www\./, "").replace(/^m\./, "");
 
     if (host === "youtu.be") {
       const id = url.pathname.split("/").filter(Boolean)[0];
       return id && /^[\w-]{11}$/.test(id) ? id : null;
     }
 
-    if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
+    if (host === "youtube.com" || host === "music.youtube.com") {
       const v = url.searchParams.get("v");
       if (v && /^[\w-]{11}$/.test(v)) return v;
       const parts = url.pathname.split("/").filter(Boolean);

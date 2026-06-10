@@ -4,10 +4,11 @@ import { projectedPlaybackTime } from "../video/roomVideo.js";
 
 const YT_PLAYING = 1;
 const YT_PAUSED = 2;
+const SKIP_SECONDS = 10;
+const DOUBLE_TAP_MS = 380;
 
 export default function VideoRoomPanel({
   videoId,
-  videoTitle,
   videoSync,
   canControl,
   onAddVideo,
@@ -18,15 +19,16 @@ export default function VideoRoomPanel({
   const mountId = useId().replace(/:/g, "");
   const playerHostId = `yt-player-${mountId}`;
   const playerRef = useRef(null);
+  const lastTapRef = useRef({ side: null, at: 0 });
   const [playerReady, setPlayerReady] = useState(false);
-  const [localPlaying, setLocalPlaying] = useState(false);
+  const [skipHint, setSkipHint] = useState(null);
   const suppressSyncRef = useRef(false);
+  const skipHintTimerRef = useRef(null);
 
   const pushSync = useCallback(
     (playing, currentTime) => {
       if (!canControl || !onSyncPlayback) return;
       suppressSyncRef.current = true;
-      setLocalPlaying(playing);
       onSyncPlayback({
         playing,
         currentTime: currentTime ?? playerRef.current?.getCurrentTime?.() ?? 0,
@@ -36,6 +38,40 @@ export default function VideoRoomPanel({
       }, 800);
     },
     [canControl, onSyncPlayback],
+  );
+
+  const showSkipHint = useCallback((label) => {
+    setSkipHint(label);
+    if (skipHintTimerRef.current) clearTimeout(skipHintTimerRef.current);
+    skipHintTimerRef.current = setTimeout(() => setSkipHint(null), 750);
+  }, []);
+
+  const seekBy = useCallback(
+    (delta) => {
+      const player = playerRef.current;
+      if (!player?.getCurrentTime || !canControl) return;
+      const next = Math.max(0, player.getCurrentTime() + delta);
+      player.seekTo(next, true);
+      const playing = player.getPlayerState?.() === YT_PLAYING;
+      pushSync(playing, next);
+      showSkipHint(delta > 0 ? `+${SKIP_SECONDS}s` : `-${SKIP_SECONDS}s`);
+    },
+    [canControl, pushSync, showSkipHint],
+  );
+
+  const handleTapZone = useCallback(
+    (side) => {
+      if (!canControl || !playerReady) return;
+      const now = Date.now();
+      const last = lastTapRef.current;
+      if (last.side === side && now - last.at <= DOUBLE_TAP_MS) {
+        seekBy(side === "left" ? -SKIP_SECONDS : SKIP_SECONDS);
+        lastTapRef.current = { side: null, at: 0 };
+        return;
+      }
+      lastTapRef.current = { side, at: now };
+    },
+    [canControl, playerReady, seekBy],
   );
 
   useEffect(() => {
@@ -106,7 +142,6 @@ export default function VideoRoomPanel({
       const state = p.getPlayerState?.();
       if (videoSync.playing && state !== YT_PLAYING) p.playVideo();
       if (!videoSync.playing && state === YT_PLAYING) p.pauseVideo();
-      setLocalPlaying(videoSync.playing);
     };
 
     tick();
@@ -114,22 +149,12 @@ export default function VideoRoomPanel({
     return () => clearInterval(interval);
   }, [playerReady, canControl, videoSync]);
 
-  useEffect(() => {
-    setLocalPlaying(Boolean(videoSync?.playing));
-  }, [videoSync?.playing, videoId]);
-
-  const togglePlay = () => {
-    const p = playerRef.current;
-    if (!p?.getPlayerState) return;
-    const state = p.getPlayerState();
-    if (state === YT_PLAYING) {
-      p.pauseVideo();
-      pushSync(false);
-    } else {
-      p.playVideo();
-      pushSync(true);
-    }
-  };
+  useEffect(
+    () => () => {
+      if (skipHintTimerRef.current) clearTimeout(skipHintTimerRef.current);
+    },
+    [],
+  );
 
   if (!videoId) {
     return (
@@ -155,28 +180,31 @@ export default function VideoRoomPanel({
     <div className="stage-video-strip stage-video-strip--reference stage-video-strip--playing">
       <div className="stage-video-player-wrap">
         <div id={playerHostId} className="stage-video-player-host" />
-      </div>
-      <div className="stage-video-meta">
-        <span className="stage-video-brand">▶ YouTube</span>
-        {videoTitle && <span className="stage-video-title">{videoTitle}</span>}
-        <div className="stage-video-controls">
-          {canControl && (
-            <>
-              <button type="button" className="stage-video-ctrl" onClick={togglePlay}>
-                {localPlaying ? "Pause" : "Play"}
+        {canControl && playerReady && (
+          <>
+            <button
+              type="button"
+              className="stage-video-tap-zone stage-video-tap-zone--left"
+              aria-label="Double-tap to rewind 10 seconds"
+              onClick={() => handleTapZone("left")}
+            />
+            <button
+              type="button"
+              className="stage-video-tap-zone stage-video-tap-zone--right"
+              aria-label="Double-tap to skip forward 10 seconds"
+              onClick={() => handleTapZone("right")}
+            />
+            <div className="stage-video-host-actions">
+              <button type="button" className="stage-video-host-btn" onClick={onChangeVideo} title="Change video">
+                ↻
               </button>
-              <button type="button" className="stage-video-ctrl stage-video-ctrl--ghost" onClick={onChangeVideo}>
-                Change video
+              <button type="button" className="stage-video-host-btn" onClick={onClearVideo} title="Remove video">
+                ✕
               </button>
-              <button type="button" className="stage-video-ctrl stage-video-ctrl--ghost" onClick={onClearVideo}>
-                Remove
-              </button>
-            </>
-          )}
-          {!canControl && (
-            <span className="stage-video-watch-hint">Watching together — synced with host</span>
-          )}
-        </div>
+            </div>
+          </>
+        )}
+        {skipHint && <span className="stage-video-skip-hint">{skipHint}</span>}
       </div>
     </div>
   );

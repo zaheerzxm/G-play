@@ -17,6 +17,14 @@ export const MINI_GAMES = [
     live: true,
   },
   {
+    id: "wordle",
+    name: "Word Battle",
+    emoji: "🎯",
+    description: "Multiplayer Wordle — same word, fastest solve wins.",
+    players: "2+",
+    live: true,
+  },
+  {
     id: "uno",
     name: "UNO",
     emoji: "🃏",

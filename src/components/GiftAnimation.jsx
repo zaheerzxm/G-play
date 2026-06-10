@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import CoinIcon from "./CoinIcon.jsx";
 import AvatarImg from "./AvatarImg.jsx";
+import LottieGift from "./LottieGift.jsx";
 
 function particlesForFx(fx) {
   if (fx === "rocket") return 6;
@@ -58,6 +59,12 @@ export default function GiftAnimation({ effects, onDone }) {
             "--dx": `${fx.dx}px`,
             "--dy": `${fx.dy}px`,
             "--dur": `${fx.duration ?? 1400}ms`,
+            ...(fx.fx === "rose-lottie"
+              ? {
+                  "--x": `${fx.x}px`,
+                  "--y": `${fx.y}px`,
+                }
+              : {}),
             ...(fx.fx === "pfp"
               ? {
                   "--start-x": `${fx.startX}px`,
@@ -68,7 +75,16 @@ export default function GiftAnimation({ effects, onDone }) {
               : {}),
           }}
         >
-          {fx.fx === "pfp" ? (
+          {fx.fx === "rose-lottie" && fx.lottie ? (
+            <>
+              <LottieGift src={fx.lottie} className="gift-fx-lottie" loop={false} />
+              {fx.reward > 0 && (
+                <span className="gift-fx-reward gift-fx-reward--lottie coin-inline">
+                  +{fx.reward} <CoinIcon size="sm" />
+                </span>
+              )}
+            </>
+          ) : fx.fx === "pfp" ? (
             <PfpFly fx={fx} />
           ) : (
             <>

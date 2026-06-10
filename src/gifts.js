@@ -1,4 +1,7 @@
 import { formatCompactNumber } from "./formatCompact.js";
+import { ROSE_LOTTIE_SRC } from "./lottieGift.js";
+
+const ROSE_GIFT_FX = { fx: "rose-lottie", lottie: ROSE_LOTTIE_SRC };
 
 export const STARTING_COINS = 500;
 export const ROOM_CREATE_COST = 2_000;
@@ -13,11 +16,11 @@ function g(id, emoji, name, cost, category, extra = {}) {
 
 /** G-play-style gift catalog */
 export const GIFT_CATALOG = [
-  { id: "pkg_rose", emoji: "🌹", name: "Rose", cost: 0, charm: 5, category: "Package", inventory: true, starterQty: 5, fx: "fly" },
+  { id: "pkg_rose", emoji: "🌹", name: "Rose", cost: 0, charm: 5, category: "Package", inventory: true, starterQty: 5, ...ROSE_GIFT_FX },
   { id: "pkg_heart", emoji: "❤️", name: "Heart", cost: 0, charm: 8, category: "Package", inventory: true, starterQty: 3, fx: "fly" },
   { id: "pkg_kiss", emoji: "💋", name: "Kiss", cost: 0, charm: 10, category: "Package", inventory: true, starterQty: 2, fx: "pop" },
   g("beer", "🍺", "Beer", 50, "Gift"),
-  g("rose", "🌹", "Rose", 10, "Gift"),
+  g("rose", "🌹", "Rose", 10, "Gift", ROSE_GIFT_FX),
   g("coffee", "☕", "Coffee", 20, "Gift"),
   g("lollipop", "🍭", "Lollipop", 30, "Gift"),
   g("heart", "❤️", "Heart", 50, "Gift", { fx: "pop" }),
@@ -63,6 +66,7 @@ export const CHEST_REWARD_GIFTS = GIFTS.map((base) => ({
   inventory: true,
   chestValue: base.cost,
   fx: base.fx ?? "fly",
+  lottie: base.lottie,
   badge: base.badge,
   premiumFx: base.premiumFx,
 }));

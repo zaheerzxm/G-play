@@ -2,7 +2,7 @@ import { getRoom } from "./gameState.js";
 import { TRIVIA_QUESTIONS } from "./triviaQuestions.js";
 
 const QUESTION_COUNT = 5;
-const QUESTION_MS = 5000;
+const QUESTION_MS = 10000;
 const REVEAL_MS = 3500;
 
 function shuffle(arr) {

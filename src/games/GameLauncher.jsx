@@ -11,6 +11,7 @@ import GameLobby from "./GameLobby.jsx";
 import GameResults from "./GameResults.jsx";
 import TriviaGame from "./trivia/TriviaGame.jsx";
 import DrawGuessGame from "./draw/DrawGuessGame.jsx";
+import WordBattleGame from "./wordle/WordBattleGame.jsx";
 
 const EMPTY_LOBBY = { selectedType: null, players: [] };
 
@@ -40,8 +41,10 @@ export default function GameLauncher({
   const gameInProgress = Boolean(
     gameState?.type && gameState.phase && gameState.phase !== "waiting" && !isFinished,
   );
-  const showGame = stageActive && gameInProgress && inActivePlayers;
-  const showResults = stageActive && gameState?.type && isFinished && inActivePlayers;
+  const isWordle = gameState?.type === "wordle";
+  const showGame = stageActive && gameInProgress && (inActivePlayers || (isWordle && !isFinished));
+  const showWordleSpectator = showGame && isWordle && !inActivePlayers;
+  const showResults = stageActive && gameState?.type && isFinished && (inActivePlayers || isWordle);
   const showLobby = stageActive && !showGame && !showResults;
 
   const applyRoomGame = useCallback((room, game) => {
@@ -235,6 +238,16 @@ export default function GameLauncher({
     });
   }, [roomId, userId, canHost, onDeactivateGameMode, applyRoomGame]);
 
+  const startNextWordleRound = useCallback(async () => {
+    setError(null);
+    const res = await emitAck("startNextWordleRound", { roomId, userId });
+    if (!res.ok) {
+      setError(res.error ?? "Could not start next round");
+      return;
+    }
+    if (res.game) setGameState(res.game);
+  }, [roomId, userId]);
+
   const replayGame = useCallback(async () => {
     const type = gameLobby.selectedType ?? gameState?.type;
     if (!type || !canHost) return;
@@ -304,6 +317,18 @@ export default function GameLauncher({
           userName={userName}
           gameState={gameState}
           onLocalStroke={sendStroke}
+        />
+      )}
+
+      {showGame && gameState?.type === "wordle" && (
+        <WordBattleGame
+          roomId={roomId}
+          userId={userId}
+          userName={userName}
+          gameState={gameState}
+          canHost={canHost}
+          spectator={showWordleSpectator}
+          onStartNextRound={startNextWordleRound}
         />
       )}
     </>

@@ -265,6 +265,7 @@ alter table rooms add column if not exists ban_chat boolean not null default fal
 alter table rooms add column if not exists ban_images boolean not null default false;
 alter table rooms add column if not exists room_password text;
 alter table rooms add column if not exists gift_sound boolean not null default true;
+alter table rooms add column if not exists video_room jsonb not null default '{}'::jsonb;
 alter table rooms add column if not exists video_youtube_id text;
 alter table rooms add column if not exists video_title text;
 alter table rooms add column if not exists video_sync jsonb not null default '{}'::jsonb;
