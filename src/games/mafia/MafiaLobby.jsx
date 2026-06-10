@@ -32,13 +32,17 @@ export default function MafiaLobby({
         <p>Social deduction on voice — minimum {MAFIA_MIN_PLAYERS} players</p>
       </header>
 
-      <MafiaPlayerList
-        players={players}
-        userId={userId}
-        showReady
-        canKick={isHost}
-        onKick={onKick}
-      />
+      {players.length === 0 ? (
+        <p className="game-lobby-joined-feed-empty">Waiting for players to join…</p>
+      ) : (
+        <MafiaPlayerList
+          players={players}
+          userId={userId}
+          showReady
+          canKick={isHost}
+          onKick={onKick}
+        />
+      )}
 
       {needMore && (
         <p className="game-lobby-hint-warn">Need at least {MAFIA_MIN_PLAYERS} players to start</p>

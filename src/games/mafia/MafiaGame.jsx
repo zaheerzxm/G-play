@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMafiaGame } from "./useMafiaGame.js";
 import { useMafiaPlayerRole } from "./useMafiaPlayerRole.js";
 import { useMafiaActions } from "./useMafiaActions.js";
@@ -26,11 +26,13 @@ export default function MafiaGame({
   onWaiting,
   onToast,
   mafiaSelected,
+  roomMafiaGameId,
   onSelectMafia,
   onCancel,
 }) {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const hostSetupRef = useRef(false);
 
   const mafia = useMafiaGame({
     roomId,
@@ -39,6 +41,7 @@ export default function MafiaGame({
     avatarUrl,
     seatNumber,
     canHost,
+    roomGameId: roomMafiaGameId,
   });
 
   const roleInfo = useMafiaPlayerRole(mafia.privateState, mafia.game?.status);
@@ -61,10 +64,25 @@ export default function MafiaGame({
   }, [mafia.inLobby, mafia.gameId, mafiaSelected, onWaiting]);
 
   useEffect(() => {
-    if (mafiaSelected && !mafia.gameId && canHost) {
-      mafia.selectMafia(settings).catch((e) => onToast?.(e.message));
-    }
-  }, [mafiaSelected, mafia.gameId, canHost]);
+    if (!mafiaSelected) hostSetupRef.current = false;
+  }, [mafiaSelected]);
+
+  useEffect(() => {
+    if (!mafiaSelected || !canHost || hostSetupRef.current) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        let id = roomMafiaGameId;
+        if (!id) id = await mafia.selectMafia(settings);
+        if (cancelled) return;
+        await mafia.join(id);
+        hostSetupRef.current = true;
+      } catch (e) {
+        if (!cancelled) onToast?.(e.message ?? "Mafia setup failed");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [mafiaSelected, canHost, roomMafiaGameId, mafia.selectMafia, mafia.join, settings, onToast]);
 
   const handleStart = useCallback(async () => {
     try {

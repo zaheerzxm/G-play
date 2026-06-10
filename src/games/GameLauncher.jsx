@@ -13,6 +13,7 @@ import TriviaGame from "./trivia/TriviaGame.jsx";
 import DrawGuessGame from "./draw/DrawGuessGame.jsx";
 import WordBattleGame from "./wordle/WordBattleGame.jsx";
 import MafiaGame from "./mafia/MafiaGame.jsx";
+import { useMafiaRoomSync } from "./mafia/useMafiaRoomSync.js";
 
 const EMPTY_LOBBY = { selectedType: null, players: [] };
 
@@ -42,6 +43,9 @@ export default function GameLauncher({
   const [mafiaSession, setMafiaSession] = useState(false);
   const [mafiaWaiting, setMafiaWaiting] = useState(false);
   const applyRef = useRef(null);
+  const { gameId: roomMafiaGameId, hasActiveMafia } = useMafiaRoomSync(roomId, stageActive);
+
+  const mafiaPicked = mafiaMode || gameLobby.selectedType === "mafia" || hasActiveMafia;
 
   const isFinished = gameState?.phase === "finished";
   const inActivePlayers = Boolean(
@@ -54,9 +58,7 @@ export default function GameLauncher({
   const showGame = stageActive && gameInProgress && (inActivePlayers || (isWordle && !isFinished));
   const showWordleSpectator = showGame && isWordle && !inActivePlayers;
   const showResults = stageActive && gameState?.type && isFinished && (inActivePlayers || isWordle);
-  const showMafia = stageActive && (
-    mafiaMode || mafiaSession || mafiaWaiting || gameLobby.selectedType === "mafia"
-  );
+  const showMafia = stageActive && (mafiaPicked || mafiaSession || mafiaWaiting);
   const showLobby = stageActive && !showGame && !showResults && !showMafia;
 
   const notify = useCallback((msg) => {
@@ -253,7 +255,11 @@ export default function GameLauncher({
     if (gameType === "mafia") {
       setMafiaMode(true);
       setGameLobby((prev) => ({ ...prev, selectedType: "mafia" }));
-      emitAck("selectGame", { roomId, userId, gameType }).catch(() => {});
+      emitAck("selectGame", { roomId, userId, gameType })
+        .then((res) => {
+          if (res.ok && res.room) applyRoomGame(res.room, null);
+        })
+        .catch(() => {});
       return;
     }
     setMafiaMode(false);
@@ -296,7 +302,7 @@ export default function GameLauncher({
   }, [roomId, userId, applyRoomGame]);
 
   const joinGame = useCallback(async () => {
-    if (gameLobby.selectedType === "mafia") {
+    if (gameLobby.selectedType === "mafia" || hasActiveMafia) {
       setMafiaMode(true);
       return;
     }
@@ -310,7 +316,7 @@ export default function GameLauncher({
       return;
     }
     if (res.room) applyRoomGame(res.room, res.room.activeGame);
-  }, [gameLobby.selectedType, socketReady, roomId, userId, userName, applyRoomGame, notify]);
+  }, [gameLobby.selectedType, hasActiveMafia, socketReady, roomId, userId, userName, applyRoomGame, notify]);
 
   const leaveLobby = useCallback(async () => {
     const res = await emitAck("leaveGameLobby", { roomId, userId });
@@ -434,7 +440,8 @@ export default function GameLauncher({
           avatarUrl={avatarUrl}
           seatNumber={seatNumber}
           canHost={canHost}
-          mafiaSelected={mafiaMode || gameLobby.selectedType === "mafia"}
+          mafiaSelected={mafiaPicked}
+          roomMafiaGameId={roomMafiaGameId}
           onSelectMafia={() => setMafiaMode(true)}
           onCancel={cancelMafia}
           onSessionActive={setMafiaSession}

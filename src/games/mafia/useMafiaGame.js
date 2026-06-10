@@ -14,7 +14,15 @@ import {
 } from "./mafiaApi.js";
 import { useMafiaRealtime } from "./useMafiaRealtime.js";
 
-export function useMafiaGame({ roomId, userId, userName, avatarUrl, seatNumber, canHost }) {
+export function useMafiaGame({
+  roomId,
+  userId,
+  userName,
+  avatarUrl,
+  seatNumber,
+  canHost,
+  roomGameId,
+}) {
   const [gameId, setGameId] = useState(null);
   const [publicState, setPublicState] = useState(null);
   const [privateState, setPrivateState] = useState(null);
@@ -57,7 +65,7 @@ export function useMafiaGame({ roomId, userId, userName, avatarUrl, seatNumber, 
     (async () => {
       setLoading(true);
       try {
-        const id = await fetchActiveMafiaGame(roomId);
+        const id = roomGameId ?? await fetchActiveMafiaGame(roomId);
         if (!active) return;
         if (id) setGameId(id);
         await refresh(id ?? undefined);
@@ -68,7 +76,13 @@ export function useMafiaGame({ roomId, userId, userName, avatarUrl, seatNumber, 
       }
     })();
     return () => { active = false; };
-  }, [roomId]);
+  }, [roomId, roomGameId]);
+
+  useEffect(() => {
+    if (!roomGameId) return;
+    setGameId(roomGameId);
+    refresh(roomGameId).catch(() => {});
+  }, [roomGameId, refresh]);
 
   useMafiaRealtime(gameId, () => {
     refresh().catch(() => {});
