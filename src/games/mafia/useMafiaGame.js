@@ -22,36 +22,33 @@ export function useMafiaGame({ roomId, userId, userName, avatarUrl, seatNumber, 
   const [loading, setLoading] = useState(true);
   const [joined, setJoined] = useState(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (overrideGameId) => {
     if (!roomId) return;
-    try {
-      let id = gameId;
-      if (!id) {
-        id = await fetchActiveMafiaGame(roomId);
-        if (id) setGameId(id);
-      }
-      if (!id) {
-        setPublicState(null);
-        setPrivateState(null);
-        setJoined(false);
-        return;
-      }
-      const [pub, priv] = await Promise.all([
-        fetchPublicState(id),
-        fetchPrivateState(id),
-      ]);
-      setPublicState(pub);
-      setPrivateState(priv);
-      const players = pub?.players ?? [];
-      setJoined(players.some((p) => p.user_id === userId));
-      if (pub?.game?.phase === "game_over" || pub?.game?.status === "ended") {
-        const rev = await fetchGameReveal(id);
-        setReveal(rev);
-      } else {
-        setReveal(null);
-      }
-    } catch {
-      /* keep last state on transient errors */
+    let id = overrideGameId ?? gameId;
+    if (!id) {
+      id = await fetchActiveMafiaGame(roomId);
+      if (id) setGameId(id);
+    }
+    if (!id) {
+      setPublicState(null);
+      setPrivateState(null);
+      setJoined(false);
+      setReveal(null);
+      return;
+    }
+    const [pub, priv] = await Promise.all([
+      fetchPublicState(id),
+      fetchPrivateState(id),
+    ]);
+    setPublicState(pub);
+    setPrivateState(priv);
+    const players = pub?.players ?? [];
+    setJoined(players.some((p) => String(p.user_id) === String(userId)));
+    if (pub?.game?.phase === "game_over" || pub?.game?.status === "ended") {
+      const rev = await fetchGameReveal(id);
+      setReveal(rev);
+    } else {
+      setReveal(null);
     }
   }, [roomId, gameId, userId]);
 
@@ -63,7 +60,9 @@ export function useMafiaGame({ roomId, userId, userName, avatarUrl, seatNumber, 
         const id = await fetchActiveMafiaGame(roomId);
         if (!active) return;
         if (id) setGameId(id);
-        await refresh();
+        await refresh(id ?? undefined);
+      } catch {
+        /* RPC may be missing until SQL migration is applied */
       } finally {
         if (active) setLoading(false);
       }
@@ -71,28 +70,40 @@ export function useMafiaGame({ roomId, userId, userName, avatarUrl, seatNumber, 
     return () => { active = false; };
   }, [roomId]);
 
-  useMafiaRealtime(gameId, refresh);
+  useMafiaRealtime(gameId, () => {
+    refresh().catch(() => {});
+  });
 
   useEffect(() => {
-    if (gameId) refresh();
+    if (gameId) refresh().catch(() => {});
   }, [gameId, refresh]);
+
+  useEffect(() => {
+    if (!gameId || publicState?.game?.status !== "lobby") return undefined;
+    const poll = setInterval(() => {
+      refresh().catch(() => {});
+    }, 3000);
+    return () => clearInterval(poll);
+  }, [gameId, publicState?.game?.status, refresh]);
 
   const selectMafia = useCallback(async (settings) => {
     const id = await createMafiaGame(roomId, { ...settings, nickname: userName });
     setGameId(id);
-    await refresh();
+    await refresh(id);
     return id;
-  }, [roomId, refresh]);
+  }, [roomId, userName, refresh]);
 
-  const join = useCallback(async () => {
-    if (!gameId) return;
-    await joinMafiaGame(gameId, {
+  const join = useCallback(async (forcedGameId) => {
+    const id = forcedGameId ?? gameId ?? await fetchActiveMafiaGame(roomId);
+    if (!id) throw new Error("No Mafia game in this room yet");
+    if (!gameId) setGameId(id);
+    await joinMafiaGame(id, {
       nickname: userName,
       avatarUrl,
       seatNumber,
     });
-    await refresh();
-  }, [gameId, userName, avatarUrl, seatNumber, refresh]);
+    await refresh(id);
+  }, [gameId, roomId, userName, avatarUrl, seatNumber, refresh]);
 
   const leave = useCallback(async () => {
     if (!gameId) return;
@@ -113,10 +124,22 @@ export function useMafiaGame({ roomId, userId, userName, avatarUrl, seatNumber, 
   }, [gameId, refresh]);
 
   const end = useCallback(async () => {
-    if (!gameId) return;
-    await endMafiaGame(gameId);
-    await refresh();
-  }, [gameId, refresh]);
+    const id = gameId ?? await fetchActiveMafiaGame(roomId);
+    if (!id) {
+      setGameId(null);
+      setPublicState(null);
+      setPrivateState(null);
+      setJoined(false);
+      setReveal(null);
+      return;
+    }
+    await endMafiaGame(id);
+    setGameId(null);
+    setPublicState(null);
+    setPrivateState(null);
+    setJoined(false);
+    setReveal(null);
+  }, [gameId, roomId]);
 
   const kick = useCallback(async (targetUserId) => {
     if (!gameId) return;
@@ -128,7 +151,8 @@ export function useMafiaGame({ roomId, userId, userName, avatarUrl, seatNumber, 
   const players = publicState?.players ?? [];
   const events = publicState?.events ?? [];
   const voteCounts = publicState?.voteCounts ?? [];
-  const isHost = game?.host_id === userId || players.find((p) => p.user_id === userId)?.is_host;
+  const isHost = String(game?.host_id) === String(userId)
+    || Boolean(players.find((p) => String(p.user_id) === String(userId))?.is_host);
   const inLobby = game?.status === "lobby";
   const inProgress = game?.status === "active";
   const isOver = game?.phase === "game_over" || game?.status === "ended";
@@ -143,7 +167,8 @@ export function useMafiaGame({ roomId, userId, userName, avatarUrl, seatNumber, 
     reveal,
     loading,
     joined,
-    isHost: Boolean(isHost || canHost),
+    isHost,
+    canManage: Boolean(isHost || canHost),
     inLobby,
     inProgress,
     isOver,

@@ -1,42 +1,47 @@
 #!/usr/bin/env node
 /**
- * Build server/wordleWords.json from public Wordle word lists.
+ * Build server/wordleWords.json from NYT Wordle lists (curated, common words).
  * Run: node server/scripts/buildWordleBank.mjs
  */
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { isBlockedWord } from "../wordleBlocklist.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(__dirname, "../wordleWords.json");
 
-const BLOCK = ["fuck", "shit", "bitch", "cunt", "whore", "slut", "rape", "nazi", "coon", "spic", "kike", "fagg", "dyke", "porn", "anus", "damn"];
-const isClean = (w) => w.length === 5 && /^[a-z]+$/.test(w) && !BLOCK.some((b) => w.includes(b));
+const NYT_ANSWERS =
+  "https://raw.githubusercontent.com/stuartpb/wordles/main/wordles.json";
+const NYT_GUESSES =
+  "https://raw.githubusercontent.com/stuartpb/wordles/main/nonwordles.json";
 
-async function fetchText(url) {
+async function fetchJson(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Fetch failed ${url}: ${res.status}`);
-  return res.text();
+  return res.json();
+}
+
+function cleanList(words) {
+  return [...new Set(words.map((w) => String(w).trim().toLowerCase()).filter((w) => !isBlockedWord(w)))];
 }
 
 async function main() {
-  const [guessesRaw, alphaRaw] = await Promise.all([
-    fetchText("https://raw.githubusercontent.com/tabatkins/wordle-list/main/words"),
-    fetchText("https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"),
+  const [answersRaw, extraGuessesRaw] = await Promise.all([
+    fetchJson(NYT_ANSWERS),
+    fetchJson(NYT_GUESSES),
   ]);
 
-  const guesses = [...new Set(guessesRaw.split("\n").map((w) => w.trim().toLowerCase()).filter(isClean))];
-  const common = [...new Set(alphaRaw.split("\n").map((w) => w.trim().toLowerCase()).filter(isClean))];
-  const guessSet = new Set(guesses);
-  const answers = common.filter((w) => guessSet.has(w));
+  const answers = cleanList(answersRaw);
+  const guesses = cleanList([...answersRaw, ...extraGuessesRaw]);
 
-  const payload = {
-    guesses,
-    answers: answers.length >= 2000 ? answers : guesses.slice(0, 2500),
-  };
+  if (answers.length < 500) {
+    throw new Error(`Answer pool too small (${answers.length}); check blocklist or source URLs`);
+  }
 
+  const payload = { guesses, answers };
   fs.writeFileSync(OUT, JSON.stringify(payload));
-  console.log(`Wrote ${OUT}: ${payload.guesses.length} guesses, ${payload.answers.length} answers`);
+  console.log(`Wrote ${OUT}: ${guesses.length} guesses, ${answers.length} answers`);
 }
 
 main().catch((err) => {

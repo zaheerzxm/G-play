@@ -13,7 +13,7 @@ export default function MafiaPlayerList({
   return (
     <ul className="mafia-player-list">
       {players.map((p) => {
-        const isMe = p.user_id === userId;
+        const isMe = String(p.user_id) === String(userId);
         const dead = p.is_alive === false;
         return (
           <li

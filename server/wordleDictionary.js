@@ -2,15 +2,19 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { getRoom } from "./gameState.js";
+import { isBlockedWord } from "./wordleBlocklist.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const bank = JSON.parse(readFileSync(join(__dirname, "wordleWords.json"), "utf8"));
 
-const GUESS_SET = new Set(bank.guesses);
-const ANSWER_POOL = bank.answers?.length ? bank.answers : bank.guesses;
+const GUESS_SET = new Set(bank.guesses.filter((w) => !isBlockedWord(w)));
+const ANSWER_POOL = (bank.answers?.length ? bank.answers : bank.guesses).filter(
+  (w) => !isBlockedWord(w),
+);
 
 export function isValidWord(word) {
-  return GUESS_SET.has(String(word ?? "").trim().toLowerCase());
+  const w = String(word ?? "").trim().toLowerCase();
+  return !isBlockedWord(w) && GUESS_SET.has(w);
 }
 
 export function pickSecretWord(roomId) {

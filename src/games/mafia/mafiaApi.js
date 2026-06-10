@@ -21,7 +21,7 @@ export async function fetchPublicState(gameId) {
 
 export async function fetchPrivateState(gameId) {
   const sb = requireClient();
-  const { data, error } = await sb.rpc("get_mafia_private_state", { p_game_id: gameId });
+  const { data, error } = await sb.rpc("get_my_mafia_private_state", { p_game_id: gameId });
   if (error) throw error;
   return data ?? {};
 }

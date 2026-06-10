@@ -138,6 +138,14 @@ create policy "mafia_events read" on mafia_events for select using (
 drop policy if exists "mafia_players read own" on mafia_players;
 create policy "mafia_players read own" on mafia_players for select using (user_id = auth.uid());
 
+drop policy if exists "mafia_players read gamemates" on mafia_players;
+create policy "mafia_players read gamemates" on mafia_players for select using (
+  exists (
+    select 1 from mafia_players self
+    where self.game_id = mafia_players.game_id and self.user_id = auth.uid()
+  )
+);
+
 drop policy if exists "mafia_player_stats read" on mafia_player_stats;
 create policy "mafia_player_stats read" on mafia_player_stats for select using (true);
 
@@ -945,9 +953,31 @@ as $$
   limit 1;
 $$;
 
--- Realtime
-alter publication supabase_realtime add table mafia_games;
-alter publication supabase_realtime add table mafia_events;
+-- Realtime (ignore errors if already added)
+do $$ begin
+  alter publication supabase_realtime add table mafia_games;
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  alter publication supabase_realtime add table mafia_players;
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  alter publication supabase_realtime add table mafia_events;
+exception when duplicate_object then null;
+end $$;
+
+-- Back-compat alias for older clients
+create or replace function get_mafia_private_state(p_game_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select get_my_mafia_private_state(p_game_id);
+$$;
+grant execute on function get_mafia_private_state to authenticated;
 
 grant execute on function create_mafia_game to authenticated;
 grant execute on function join_mafia_game to authenticated;

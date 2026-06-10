@@ -8,6 +8,7 @@ export default function MafiaLobby({
   userId,
   joined,
   isHost,
+  canManage,
   canStart,
   onJoin,
   onLeave,
@@ -22,7 +23,7 @@ export default function MafiaLobby({
   onSettingsClose,
 }) {
   const needMore = players.length < MAFIA_MIN_PLAYERS;
-  const me = players.find((p) => p.user_id === userId);
+  const me = players.find((p) => String(p.user_id) === String(userId));
 
   return (
     <div className="mafia-lobby game-lobby">
@@ -68,7 +69,7 @@ export default function MafiaLobby({
             Start Mafia
           </button>
         )}
-        {isHost && (
+        {canManage && (
           <>
             <button type="button" className="game-btn game-btn--ghost" onClick={onOpenSettings}>
               Settings

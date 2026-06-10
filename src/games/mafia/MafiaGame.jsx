@@ -6,6 +6,7 @@ import { useMafiaTimer } from "./useMafiaTimer.js";
 import MafiaLobby from "./MafiaLobby.jsx";
 import MafiaGameScreen from "./MafiaGameScreen.jsx";
 import MafiaGameOver from "./MafiaGameOver.jsx";
+import { isConfigured } from "../../supabase.js";
 
 const DEFAULT_SETTINGS = {
   daySeconds: 90,
@@ -26,6 +27,7 @@ export default function MafiaGame({
   onToast,
   mafiaSelected,
   onSelectMafia,
+  onCancel,
 }) {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -74,12 +76,22 @@ export default function MafiaGame({
 
   const handleJoin = useCallback(async () => {
     try {
-      if (!mafia.gameId) await mafia.selectMafia(settings);
-      await mafia.join();
+      let id = mafia.gameId;
+      if (!id && canHost) id = await mafia.selectMafia(settings);
+      await mafia.join(id);
     } catch (e) {
       onToast?.(e.message ?? "Could not join");
     }
-  }, [mafia, settings, onToast]);
+  }, [mafia, settings, canHost, onToast]);
+
+  const handleCancel = useCallback(async () => {
+    try {
+      await mafia.end();
+      onCancel?.();
+    } catch (e) {
+      onToast?.(e.message ?? "Could not cancel");
+    }
+  }, [mafia, onCancel, onToast]);
 
   const handlePlayAgain = useCallback(async () => {
     try {
@@ -89,6 +101,14 @@ export default function MafiaGame({
       onToast?.(e.message ?? "Could not restart");
     }
   }, [mafia, settings, onSelectMafia, onToast]);
+
+  if (!isConfigured) {
+    return (
+      <div className="mafia-loading">
+        Mafia requires Supabase — add VITE_SUPABASE_URL and VITE_SUPABASE_KEY.
+      </div>
+    );
+  }
 
   if (mafia.loading && !mafia.game) {
     return <div className="mafia-loading">Loading Mafia…</div>;
@@ -112,11 +132,12 @@ export default function MafiaGame({
         userId={userId}
         joined={mafia.joined}
         isHost={mafia.isHost}
+        canManage={mafia.canManage}
         canStart={mafia.players.filter((p) => p.is_ready).length >= mafia.players.length}
         onJoin={handleJoin}
         onLeave={() => mafia.leave().catch((e) => onToast?.(e.message))}
         onStart={handleStart}
-        onEnd={() => mafia.end().catch((e) => onToast?.(e.message))}
+        onEnd={handleCancel}
         onToggleReady={(r) => mafia.toggleReady(r).catch((e) => onToast?.(e.message))}
         onKick={(id) => mafia.kick(id).catch((e) => onToast?.(e.message))}
         onOpenSettings={() => setSettingsOpen(true)}

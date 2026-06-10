@@ -54,7 +54,9 @@ export default function GameLauncher({
   const showGame = stageActive && gameInProgress && (inActivePlayers || (isWordle && !isFinished));
   const showWordleSpectator = showGame && isWordle && !inActivePlayers;
   const showResults = stageActive && gameState?.type && isFinished && (inActivePlayers || isWordle);
-  const showMafia = stageActive && (mafiaMode || mafiaSession || mafiaWaiting);
+  const showMafia = stageActive && (
+    mafiaMode || mafiaSession || mafiaWaiting || gameLobby.selectedType === "mafia"
+  );
   const showLobby = stageActive && !showGame && !showResults && !showMafia;
 
   const notify = useCallback((msg) => {
@@ -281,6 +283,18 @@ export default function GameLauncher({
     else if (res.game) setGameState(res.game);
   }, [socketReady, roomId, userId, applyRoomGame, notify]);
 
+  const cancelMafia = useCallback(() => {
+    setMafiaMode(false);
+    setMafiaSession(false);
+    setMafiaWaiting(false);
+    setGameLobby(EMPTY_LOBBY);
+    emitAck("endGame", { roomId, userId, force: true })
+      .then((res) => {
+        if (res.ok) applyRoomGame({ gameLobby: EMPTY_LOBBY }, null);
+      })
+      .catch(() => {});
+  }, [roomId, userId, applyRoomGame]);
+
   const joinGame = useCallback(async () => {
     if (gameLobby.selectedType === "mafia") {
       setMafiaMode(true);
@@ -422,6 +436,7 @@ export default function GameLauncher({
           canHost={canHost}
           mafiaSelected={mafiaMode || gameLobby.selectedType === "mafia"}
           onSelectMafia={() => setMafiaMode(true)}
+          onCancel={cancelMafia}
           onSessionActive={setMafiaSession}
           onWaiting={setMafiaWaiting}
           onToast={onGameToast}

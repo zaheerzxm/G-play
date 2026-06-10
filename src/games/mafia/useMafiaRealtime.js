@@ -14,6 +14,11 @@ export function useMafiaRealtime(gameId, onChange) {
       )
       .on(
         "postgres_changes",
+        { event: "*", schema: "public", table: "mafia_players", filter: `game_id=eq.${gameId}` },
+        () => onChange(),
+      )
+      .on(
+        "postgres_changes",
         { event: "INSERT", schema: "public", table: "mafia_events", filter: `game_id=eq.${gameId}` },
         () => onChange(),
       )
