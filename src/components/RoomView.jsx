@@ -2490,13 +2490,15 @@ function RoomContent({
   }
 
   async function sendEmote(emote) {
-    if (!room || !supabase || !mySeat) {
+    if (!room || !supabase) return;
+    const inActiveGame = gamesSessionActive || gamesWaitingActive;
+    if (!mySeat && !inActiveGame) {
       setError("Take a seat to send emotes");
       return;
     }
     setEmojiOpen(false);
     setError(null);
-    playSeatEmote(mySeat, emote);
+    if (mySeat) playSeatEmote(mySeat, emote);
     const text = emoteMessage(emote.key);
     const { error: sendError } = await supabase.from("messages").insert({
       room_id: room.id,

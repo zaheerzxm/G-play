@@ -28,12 +28,6 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_KEY }}
-          VITE_LIVEKIT_URL: ${{ secrets.VITE_LIVEKIT_URL }}
-          VITE_SUPER_ADMIN_EMAIL: ${{ secrets.VITE_SUPER_ADMIN_EMAIL }}
-          VITE_SOCKET_URL: https://g-play-socket.onrender.com
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4

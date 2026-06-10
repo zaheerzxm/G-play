@@ -63,10 +63,13 @@ function endActiveGame(roomId) {
   clearActiveGame(roomId);
 }
 
+function personalGameSnapshot(game, userId) {
+  if (!game) return null;
+  return game.snapshot?.(userId) ?? game.toPublic?.() ?? null;
+}
+
 function broadcastGameState(io, roomId, game) {
   const roomState = publicRoomState(roomId);
-  const publicSnap = game.toPublic?.() ?? game.snapshot?.();
-  io.to(roomChannel(roomId)).emit("gameStateUpdate", { room: roomState, game: publicSnap });
   if (game.type === "draw") {
     const room = getRoom(roomId);
     for (const m of room.members.values()) {
@@ -75,7 +78,10 @@ function broadcastGameState(io, roomId, game) {
         io.to(m.socketId).emit("gameStateUpdate", { room: roomState, game: personal });
       }
     }
+    return;
   }
+  const publicSnap = game.toPublic?.() ?? game.snapshot?.();
+  io.to(roomChannel(roomId)).emit("gameStateUpdate", { room: roomState, game: publicSnap });
 }
 
 function broadcastRoom(io, roomId, game = undefined) {
@@ -133,8 +139,18 @@ io.on("connection", (socket) => {
       });
 
       const state = publicRoomState(roomId);
-      io.to(roomChannel(roomId)).emit("gameStateUpdate", { room: state, game: state.activeGame });
-      ack?.({ ok: true, state });
+      const activeGame = getActiveGame(roomId);
+      if (activeGame?.type === "draw") {
+        io.to(roomChannel(roomId)).emit("gameStateUpdate", { room: state });
+        socket.emit("gameStateUpdate", {
+          room: state,
+          game: personalGameSnapshot(activeGame, userId),
+        });
+      } else {
+        io.to(roomChannel(roomId)).emit("gameStateUpdate", { room: state, game: state.activeGame });
+      }
+      const ackState = { ...state, activeGame: personalGameSnapshot(activeGame, userId) ?? state.activeGame };
+      ack?.({ ok: true, state: ackState });
     } catch (e) {
       ack?.({ ok: false, error: e.message });
     }
@@ -172,9 +188,15 @@ io.on("connection", (socket) => {
 
   socket.on("getGameState", (payload, ack) => {
     try {
-      const { roomId } = payload ?? {};
+      const { roomId, userId: payloadUserId } = payload ?? {};
       if (!roomId) throw new Error("roomId required");
+      const meta = socketMeta.get(socket.id);
+      const userId = payloadUserId || meta?.userId;
       const state = publicRoomState(roomId);
+      const activeGame = getActiveGame(roomId);
+      if (activeGame && userId) {
+        state.activeGame = personalGameSnapshot(activeGame, userId);
+      }
       ack?.({ ok: true, state });
     } catch (e) {
       ack?.({ ok: false, error: e.message });

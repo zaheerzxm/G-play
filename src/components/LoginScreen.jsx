@@ -24,7 +24,8 @@ export default function LoginScreen() {
         <p className="subtitle">Sign in to join voice rooms</p>
         {!isConfigured && (
           <p className="banner error">
-            Add Supabase keys to <code>.env</code>
+            App is missing Supabase config. Rebuild with <code>VITE_SUPABASE_URL</code> and{" "}
+            <code>VITE_SUPABASE_KEY</code> in <code>.env.production</code>.
           </p>
         )}
         {error && <p className="banner error">{error}</p>}

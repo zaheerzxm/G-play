@@ -51,7 +51,20 @@ export default function GameLauncher({
     let nextGame = game !== undefined ? game : room?.activeGame;
     if (nextGame?.phase === "waiting") nextGame = null;
     if (nextGame !== undefined) {
-      setGameState(nextGame || null);
+      setGameState((prev) => {
+        if (!nextGame) return null;
+        const isDrawer = nextGame.drawerId === userId;
+        if (
+          isDrawer
+          && prev?.type === "draw"
+          && prev.word
+          && !nextGame.word
+          && nextGame.phase === "drawing"
+        ) {
+          return { ...nextGame, word: prev.word };
+        }
+        return nextGame;
+      });
     }
 
     const lobbyPlayers = room?.gameLobby?.players ?? [];
@@ -117,7 +130,7 @@ export default function GameLauncher({
     socket.on("gameStateUpdate", onUpdate);
 
     const syncState = () =>
-      emitAck("getGameState", { roomId }).then((res) => {
+      emitAck("getGameState", { roomId, userId }).then((res) => {
         if (!active || !res.ok || !res.state) return;
         applyRef.current?.(res.state, res.state.activeGame);
       });

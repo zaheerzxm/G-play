@@ -1,7 +1,8 @@
+import { getRoom } from "./gameState.js";
 import { TRIVIA_QUESTIONS } from "./triviaQuestions.js";
 
 const QUESTION_COUNT = 5;
-const QUESTION_MS = 15000;
+const QUESTION_MS = 5000;
 const REVEAL_MS = 3500;
 
 function shuffle(arr) {
@@ -13,8 +14,28 @@ function shuffle(arr) {
   return a;
 }
 
+/** Pick questions this room has not used yet; reset pool only when exhausted. */
+export function pickTriviaQuestions(roomId, count = QUESTION_COUNT) {
+  const room = getRoom(roomId);
+  if (!room.triviaUsedIds) room.triviaUsedIds = new Set();
+
+  let available = TRIVIA_QUESTIONS.map((_, index) => index).filter(
+    (index) => !room.triviaUsedIds.has(index),
+  );
+
+  if (available.length < count) {
+    room.triviaUsedIds.clear();
+    available = TRIVIA_QUESTIONS.map((_, index) => index);
+  }
+
+  const picked = shuffle(available).slice(0, count);
+  for (const index of picked) room.triviaUsedIds.add(index);
+
+  return picked.map((index) => ({ ...TRIVIA_QUESTIONS[index], id: index }));
+}
+
 export function createTriviaGame({ roomId, hostUserId, players }) {
-  const questions = shuffle(TRIVIA_QUESTIONS).slice(0, QUESTION_COUNT);
+  const questions = pickTriviaQuestions(roomId, QUESTION_COUNT);
   const scores = {};
   for (const p of players) scores[p.userId] = 0;
 

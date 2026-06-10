@@ -33,12 +33,18 @@ export default function DrawGuessGame({
   const [saveMsg, setSaveMsg] = useState(null);
 
   const isDrawer = gameState?.drawerId === userId;
+  const drawerWordRef = useRef(null);
+  if (isDrawer && gameState?.word) drawerWordRef.current = gameState.word;
+  const drawerWord = gameState?.word || (isDrawer ? drawerWordRef.current : null);
   const strokes = [...(gameState?.strokes ?? []), ...localStrokes];
   const canDraw = isDrawer && gameState?.phase === "drawing";
+  const guessersTotal = Math.max(0, (gameState?.players?.length ?? 1) - 1);
+  const guessedCount = gameState?.guessedUserIds?.length ?? 0;
 
   useEffect(() => {
     setLocalStrokes([]);
-  }, [gameState?.roundIndex]);
+    if (isDrawer) drawerWordRef.current = null;
+  }, [gameState?.roundIndex, isDrawer]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -112,9 +118,14 @@ export default function DrawGuessGame({
 
       <div className="draw-game-prompt">
         {isDrawer ? (
-          <span>Draw: <strong>{gameState?.word}</strong></span>
+          <span className="draw-word-prompt">
+            Draw: <strong>{drawerWord || "…"}</strong>
+          </span>
         ) : (
           <span className="draw-hint">{gameState?.hint}</span>
+        )}
+        {!isDrawer && guessersTotal > 0 && (
+          <span className="draw-guess-progress">{guessedCount}/{guessersTotal} guessed</span>
         )}
         <span className="draw-game-scores">
           {leaderboard.slice(0, 3).map((row) => (

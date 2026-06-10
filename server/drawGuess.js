@@ -4,6 +4,8 @@ import { getRoom } from "./gameState.js";
 const ROUND_MS = 60000;
 const BETWEEN_ROUND_MS = 4000;
 const MAX_ROUNDS_PER_PLAYER = 2;
+const GUESS_TIME_TRIM_MS = 2000;
+const MIN_ROUND_TAIL_MS = 2500;
 
 function pickWord() {
   return DRAW_WORDS[Math.floor(Math.random() * DRAW_WORDS.length)];
@@ -107,6 +109,19 @@ function broadcastDrawState(game, io, roomId) {
   }
 }
 
+function shortenDrawTimer(game, io, roomId, trimMs = GUESS_TIME_TRIM_MS) {
+  if (game.phase !== "drawing") return;
+  const now = Date.now();
+  const remaining = Math.max(0, (game.endsAt ?? now) - now);
+  const nextRemaining = Math.max(MIN_ROUND_TAIL_MS, remaining - trimMs);
+  if (nextRemaining >= remaining) return;
+  game.endsAt = now + nextRemaining;
+  game.clearTimers();
+  const timer = setTimeout(() => endDrawRound(game, io, roomId), nextRemaining);
+  game.timers.push(timer);
+  broadcastDrawState(game, io, roomId);
+}
+
 function endDrawRound(game, io, roomId) {
   const state = game._state;
   game.phase = "roundEnd";
@@ -161,11 +176,14 @@ export function handleGuess(game, userId, guess, io, roomId) {
   game.scores[userId] = (game.scores[userId] ?? 0) + points;
   game.scores[game.drawerId] = (game.scores[game.drawerId] ?? 0) + 35;
 
-  broadcastDrawState(game, io, roomId);
+  const allGuessed = state.guessed.size >= game.players.length - 1;
 
-  if (state.guessed.size >= game.players.length - 1) {
+  if (allGuessed) {
     game.clearTimers();
+    broadcastDrawState(game, io, roomId);
     endDrawRound(game, io, roomId);
+  } else {
+    shortenDrawTimer(game, io, roomId, GUESS_TIME_TRIM_MS);
   }
 
   return { ok: true, correct: true, points, rank: rank + 1 };

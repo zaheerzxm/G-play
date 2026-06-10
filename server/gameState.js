@@ -12,6 +12,7 @@ export function getRoom(roomId) {
       members: new Map(),
       activeGame: null,
       gameLobby: { selectedType: null, players: [] },
+      triviaUsedIds: new Set(),
     });
   }
   return rooms.get(roomId);
