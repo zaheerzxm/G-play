@@ -1379,6 +1379,13 @@
   color: #fca5a5;
 }
 
+.wordle-chat-hint {
+  margin: 0.35rem 0 0;
+  text-align: center;
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .wordle-done-hint,
 .wordle-spectator-msg,
 .wordle-reveal {

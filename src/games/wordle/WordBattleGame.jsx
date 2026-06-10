@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { emitAck } from "../../lib/socket.js";
 import WordleBoard from "./WordleBoard.jsx";
-import WordleKeyboard from "./WordleKeyboard.jsx";
 import {
   ensureWordleGameRecord,
   finishWordleGameRecord,
@@ -50,30 +48,20 @@ function Confetti() {
 export default function WordBattleGame({
   roomId,
   userId,
-  userName,
   gameState,
   canHost,
   spectator = false,
+  draftGuess = "",
   onStartNextRound,
 }) {
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-  const [shake, setShake] = useState(false);
   const [livePlayers, setLivePlayers] = useState([]);
+  const prevGuessCountRef = useRef(0);
 
   const phase = gameState?.phase ?? "waiting";
   const maxAttempts = gameState?.maxAttempts ?? 6;
   const myGuesses = gameState?.myGuesses ?? [];
   const myFinished = gameState?.myFinished ?? false;
   const celebrate = myGuesses.at(-1)?.result?.every((r) => r === "correct");
-
-  useEffect(() => {
-    if (phase === "playing" || phase === "countdown") {
-      setDraft("");
-      setError(null);
-    }
-  }, [phase, gameState?.roundNumber]);
 
   useEffect(() => {
     if (!gameState?.gameId) return undefined;
@@ -118,78 +106,26 @@ export default function WordBattleGame({
     }
   }, [gameState?.players, gameState?.gameId]);
 
-  const keyStates = useMemo(() => {
-    const map = {};
-    for (const g of myGuesses) {
-      g.guess.split("").forEach((ch, i) => {
-        const r = g.result[i];
-        const prev = map[ch];
-        if (r === "correct" || (r === "present" && prev !== "correct")) map[ch] = r;
-        if (r === "absent" && !prev) map[ch] = r;
-      });
-    }
-    return map;
-  }, [myGuesses]);
-
-  const submitGuess = useCallback(async () => {
-    const word = draft.trim().toLowerCase();
-    if (word.length !== 5 || busy || myFinished || spectator || phase !== "playing") return;
-    setBusy(true);
-    setError(null);
-    const res = await emitAck("sendWordleGuess", { roomId, userId, guess: word });
-    setBusy(false);
-    if (!res.ok) {
-      setError(res.error ?? "Invalid word");
-      setShake(true);
-      setTimeout(() => setShake(false), 450);
+  useEffect(() => {
+    if (!gameState?.gameId || myGuesses.length <= prevGuessCountRef.current) {
+      prevGuessCountRef.current = myGuesses.length;
       return;
     }
-    setDraft("");
-    if (gameState?.gameId) {
+    const latest = myGuesses[myGuesses.length - 1];
+    if (latest?.guess && latest?.result) {
       insertWordleGuess({
         gameId: gameState.gameId,
         userId,
-        guess: word,
-        result: res.result,
+        guess: latest.guess,
+        result: latest.result,
       });
     }
-  }, [draft, busy, myFinished, spectator, phase, roomId, userId, gameState?.gameId]);
-
-  const onKey = useCallback(
-    (key) => {
-      if (spectator || myFinished || phase !== "playing" || busy) return;
-      if (key === "⌫") {
-        setDraft((d) => d.slice(0, -1));
-        return;
-      }
-      if (key === "ENTER") {
-        submitGuess();
-        return;
-      }
-      if (draft.length < 5 && /^[A-Z]$/.test(key)) {
-        setDraft((d) => `${d}${key.toLowerCase()}`);
-      }
-    },
-    [spectator, myFinished, phase, busy, draft, submitGuess],
-  );
-
-  useEffect(() => {
-    if (spectator || myFinished || phase !== "playing") return undefined;
-    const onKeyDown = (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submitGuess();
-      } else if (e.key === "Backspace") {
-        setDraft((d) => d.slice(0, -1));
-      } else if (/^[a-zA-Z]$/.test(e.key) && draft.length < 5) {
-        setDraft((d) => `${d}${e.key.toLowerCase()}`);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [spectator, myFinished, phase, draft, submitGuess]);
+    prevGuessCountRef.current = myGuesses.length;
+  }, [myGuesses, gameState?.gameId, userId]);
 
   const ranked = livePlayers.length ? livePlayers : gameState?.players ?? [];
+  const previewGuess =
+    phase === "playing" && !myFinished && !spectator ? draftGuess : "";
 
   return (
     <div className={`wordle-game ${spectator ? "wordle-game--spectator" : ""}`}>
@@ -219,14 +155,13 @@ export default function WordBattleGame({
             <>
               <WordleBoard
                 guesses={myGuesses}
-                currentGuess={phase === "playing" && !myFinished ? draft : ""}
+                currentGuess={previewGuess}
                 maxAttempts={maxAttempts}
-                shake={shake}
+                shake={false}
                 celebrate={celebrate}
               />
-              {error && <p className="wordle-error">{error}</p>}
               {phase === "playing" && !myFinished && (
-                <WordleKeyboard onKey={onKey} keyStates={keyStates} disabled={busy} />
+                <p className="wordle-chat-hint">Type a 5-letter word in the bar below and send</p>
               )}
               {myFinished && phase === "playing" && (
                 <p className="wordle-done-hint">You&apos;re done — watch the leaderboard!</p>

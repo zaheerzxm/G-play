@@ -404,6 +404,7 @@ function RoomContent({
   const [functionsOpen, setFunctionsOpen] = useState(false);
   const [gamesSessionActive, setGamesSessionActive] = useState(false);
   const [gamesWaitingActive, setGamesWaitingActive] = useState(false);
+  const [dockChatConfig, setDockChatConfig] = useState(null);
   const liveGameRef = useRef(null);
   const [stickerOpen, setStickerOpen] = useState(false);
   const [coinShopOpen, setCoinShopOpen] = useState(false);
@@ -2423,6 +2424,14 @@ function RoomContent({
     setToast("Invite declined");
   }
 
+  function handleChatInput(value) {
+    if (dockChatConfig?.lettersOnly) {
+      setChatInput(value.replace(/[^a-zA-Z]/g, "").slice(0, dockChatConfig.maxLength ?? 5).toLowerCase());
+      return;
+    }
+    setChatInput(value);
+  }
+
   async function sendMessage(e) {
     e.preventDefault();
     const text = chatInput.trim();
@@ -2437,6 +2446,32 @@ function RoomContent({
     }
 
     const liveGame = liveGameRef.current;
+    if (
+      liveGame?.type === "wordle"
+      && liveGame.phase === "playing"
+      && liveGame.joined
+      && !liveGame.myFinished
+    ) {
+      const word = text.toLowerCase();
+      if (word.length !== 5) {
+        setToast("Enter a 5-letter word");
+        return;
+      }
+      setError(null);
+      connectSocket();
+      const guessRes = await emitAck("sendWordleGuess", {
+        roomId: roomMeta.id,
+        userId,
+        guess: word,
+      });
+      if (guessRes.ok) {
+        setChatInput("");
+        return;
+      }
+      setToast(guessRes.error ?? "Invalid word");
+      return;
+    }
+
     if (
       liveGame?.type === "draw"
       && liveGame.phase === "drawing"
@@ -3181,6 +3216,8 @@ function RoomContent({
             onDeactivateGameMode={deactivateGamesModeAfterPlay}
             onSessionActiveChange={setGamesSessionActive}
             onWaitingGameChange={setGamesWaitingActive}
+            onDockChatConfig={setDockChatConfig}
+            chatDraft={chatInput}
             liveGameRef={liveGameRef}
           />
         </div>
@@ -3280,8 +3317,10 @@ function RoomContent({
 
         <RoomDock
           chatInput={chatInput}
-          onChatInput={setChatInput}
+          onChatInput={handleChatInput}
           onSendMessage={sendMessage}
+          chatPlaceholder={dockChatConfig?.placeholder ?? "Type…"}
+          chatMaxLength={dockChatConfig?.maxLength ?? 300}
           onEmoji={() => setEmojiOpen(true)}
           onGift={() => setGiftSheetOpen(true)}
           onChest={() => setDailyTasksOpen(true)}

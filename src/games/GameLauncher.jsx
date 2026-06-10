@@ -25,6 +25,8 @@ export default function GameLauncher({
   onDeactivateGameMode,
   onSessionActiveChange,
   onWaitingGameChange,
+  onDockChatConfig,
+  chatDraft = "",
   liveGameRef,
 }) {
   const [gameState, setGameState] = useState(null);
@@ -85,6 +87,46 @@ export default function GameLauncher({
   useEffect(() => {
     onWaitingGameChange?.(Boolean(showLobby));
   }, [showLobby, onWaitingGameChange]);
+
+  useEffect(() => {
+    if (!onDockChatConfig) return;
+    const wordleTyping =
+      showGame
+      && gameState?.type === "wordle"
+      && inActivePlayers
+      && !gameState.myFinished
+      && gameState.phase === "playing";
+    const drawGuessing =
+      showGame
+      && gameState?.type === "draw"
+      && inActivePlayers
+      && gameState.phase === "drawing"
+      && gameState.drawerId !== userId;
+    if (wordleTyping) {
+      onDockChatConfig({
+        placeholder: "5-letter word…",
+        maxLength: 5,
+        lettersOnly: true,
+      });
+    } else if (drawGuessing) {
+      onDockChatConfig({
+        placeholder: "Guess the word…",
+        maxLength: 80,
+        lettersOnly: false,
+      });
+    } else {
+      onDockChatConfig(null);
+    }
+  }, [
+    showGame,
+    gameState?.type,
+    gameState?.phase,
+    gameState?.myFinished,
+    gameState?.drawerId,
+    inActivePlayers,
+    userId,
+    onDockChatConfig,
+  ]);
 
   useEffect(() => {
     if (!stageActive) {
@@ -328,6 +370,7 @@ export default function GameLauncher({
           gameState={gameState}
           canHost={canHost}
           spectator={showWordleSpectator}
+          draftGuess={chatDraft}
           onStartNextRound={startNextWordleRound}
         />
       )}

@@ -9,6 +9,8 @@ export default function RoomDock({
   onGift,
   onChest,
   onGrid,
+  chatPlaceholder = "Type…",
+  chatMaxLength = 300,
 }) {
   return (
     <div className="room-dock room-dock--G-play">
@@ -19,10 +21,13 @@ export default function RoomDock({
       <form className="dock-chat" onSubmit={onSendMessage}>
         <input
           type="text"
-          placeholder="Type…"
-          maxLength={300}
+          placeholder={chatPlaceholder}
+          maxLength={chatMaxLength}
           value={chatInput}
           onChange={(e) => onChatInput(e.target.value)}
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
         />
       </form>
       <button type="button" className="dock-btn dock-btn--emoji" aria-label="Emotes" onClick={onEmoji}>
