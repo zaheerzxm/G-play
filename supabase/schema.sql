@@ -6,7 +6,7 @@ create table rooms (
 
 create table seats (
   id bigint generated always as identity primary key,
-  room_id text references rooms(id),
+  room_id text references rooms(id) on delete cascade,
   seat_number int not null,
   user_id text,
   nickname text,
@@ -17,7 +17,7 @@ create table seats (
 
 create table messages (
   id bigint generated always as identity primary key,
-  room_id text references rooms(id),
+  room_id text references rooms(id) on delete cascade,
   user_id text,
   nickname text,
   message text,
@@ -28,6 +28,14 @@ insert into rooms(id, name)
 values ('global-room', 'Global Room');
 
 insert into seats(room_id, seat_number)
-select 'global-room', generate_series(1, 10);
+select 'global-room', generate_series(1, 14);
 
--- Enable RLS policies + realtime for seats and messages in Supabase dashboard
+create unique index if not exists seats_one_user_per_room
+  on seats (room_id, user_id)
+  where user_id is not null;
+
+create unique index if not exists seats_one_nickname_per_room
+  on seats (room_id, lower(btrim(nickname)))
+  where nickname is not null;
+
+-- Run rls-policies.sql for RLS + realtime

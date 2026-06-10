@@ -1,456 +1,379 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { getSession, onAuthChange } from "./auth.js";
+import LoginScreen from "./components/LoginScreen.jsx";
+import LobbyScreen from "./components/LobbyScreen.jsx";
+import ProfileSetupScreen from "./components/ProfileSetupScreen.jsx";
+import RoomView from "./components/RoomView.jsx";
+import DmCallProvider from "./components/DmCallProvider.jsx";
+import { ensureProfile, loadMyRooms, loadProfileBundle, loadSavedRooms, searchRoomByCode, loadRoomById, cleanupOwnedEmptyTempRooms, cleanupStaleTempRooms } from "./profile.js";
+import { checkRoomEntry } from "./roomAccess.js";
 import { isConfigured, supabase } from "./supabase.js";
+import { fetchWalletCoins, subscribeWallet } from "./wallet.js";
+import { effectiveVipLevel } from "./vipStatus.js";
 
-const SEAT_LAYOUT = [
-  [1, 2],
-  [3, 4, 5, 6],
-  [7, 8, 9, 10],
-];
+const ACTIVE_ROOM_STORAGE_KEY = "gplay.activeRoom.v1";
 
-const NICKNAME_KEY = "gplay_nickname";
-const POLL_MS = 2000;
-
-function getUserId() {
-  const key = "gplay_user_id";
-  let id = localStorage.getItem(key);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(key, id);
+function readStoredActiveRoom() {
+  try {
+    const raw = window.localStorage.getItem(ACTIVE_ROOM_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
   }
-  return id;
 }
 
-function isSeatTaken(seat) {
-  return Boolean(seat?.user_id);
+function saveStoredActiveRoom(room, minimized = false) {
+  if (!room?.id) return;
+  try {
+    window.localStorage.setItem(
+      ACTIVE_ROOM_STORAGE_KEY,
+      JSON.stringify({ id: room.id, room_code: room.room_code ?? null, minimized: Boolean(minimized) }),
+    );
+  } catch {
+    /* optional */
+  }
 }
 
-function seatInitial(seat) {
-  const name = seat?.nickname?.trim();
-  return name ? name.charAt(0).toUpperCase() : "?";
+function clearStoredActiveRoom() {
+  try {
+    window.localStorage.removeItem(ACTIVE_ROOM_STORAGE_KEY);
+  } catch {
+    /* optional */
+  }
 }
 
 export default function App() {
-  const userId = useRef(getUserId()).current;
-  const joinedAtRef = useRef(null);
-
-  const [joinInput, setJoinInput] = useState("");
-  const [nickname, setNickname] = useState(null);
-  const [room, setRoom] = useState(null);
-  const [seats, setSeats] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [chatInput, setChatInput] = useState("");
+  const [booting, setBooting] = useState(true);
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [coins, setCoins] = useState(0);
+  const [myRooms, setMyRooms] = useState([]);
+  const [savedRooms, setSavedRooms] = useState([]);
+  const [activeRoom, setActiveRoom] = useState(null);
+  const [roomMinimized, setRoomMinimized] = useState(false);
+  const [pendingRoomCode, setPendingRoomCode] = useState(null);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [live, setLive] = useState(false);
-  const [autoJoining, setAutoJoining] = useState(true);
-  const chatEndRef = useRef(null);
 
-  const mySeat = seats.find((s) => s.user_id === userId)?.seat_number ?? null;
-  const seatMap = Object.fromEntries(seats.map((s) => [s.seat_number, s]));
+  const isSuperAdmin = Boolean(profile?.is_super_admin);
 
-  const loadRoom = useCallback(async () => {
-    if (!supabase) throw new Error("Supabase is not configured");
-    const { data, error: roomError } = await supabase.from("rooms").select("*").limit(1);
-    if (roomError) throw roomError;
-    if (!data?.length) throw new Error("No room found in the rooms table");
-    return data[0];
+  const refreshProfile = useCallback(async (userId) => {
+    const bundle = await loadProfileBundle(userId);
+    if (!bundle) return;
+    setProfile(bundle.profile);
+    setCoins(bundle.coins);
+    const [rooms, saved] = await Promise.all([loadMyRooms(userId), loadSavedRooms(userId)]);
+    setMyRooms(rooms);
+    setSavedRooms(saved);
   }, []);
 
-  const loadSeats = useCallback(async (roomId) => {
-    if (!supabase) return;
-    const { data, error: seatError } = await supabase
-      .from("seats")
-      .select("*")
-      .eq("room_id", roomId)
-      .order("seat_number");
-    if (seatError) throw seatError;
-    setSeats(data ?? []);
-  }, []);
+  const bootstrapUser = useCallback(
+    async (nextSession) => {
+      if (!nextSession?.user) {
+        setSession(null);
+        setProfile(null);
+        setCoins(0);
+        setMyRooms([]);
+        setSavedRooms([]);
+        setActiveRoom(null);
+        setRoomMinimized(false);
+        clearStoredActiveRoom();
+        return;
+      }
 
-  const loadMessages = useCallback(async (roomId) => {
-    if (!supabase) return;
-    let query = supabase
-      .from("messages")
-      .select("*")
-      .eq("room_id", roomId)
-      .order("created_at", { ascending: true });
-
-    if (joinedAtRef.current) {
-      query = query.gte("created_at", joinedAtRef.current);
-    }
-
-    const { data, error: msgError } = await query.limit(200);
-    if (msgError) throw msgError;
-    setMessages(data ?? []);
-  }, []);
-
-  const enterRoom = useCallback(
-    async (name) => {
-      const trimmed = name.trim();
-      if (trimmed.length < 2) return;
-
-      setLoading(true);
+      setSession(nextSession);
       setError(null);
-      joinedAtRef.current = new Date().toISOString();
 
       try {
-        const globalRoom = await loadRoom();
-        setRoom(globalRoom);
-        setNickname(trimmed);
-        sessionStorage.setItem(NICKNAME_KEY, trimmed);
-        await Promise.all([loadSeats(globalRoom.id), loadMessages(globalRoom.id)]);
+        const ensured = await ensureProfile(nextSession.user);
+        if (ensured) setProfile(ensured);
+        await refreshProfile(nextSession.user.id);
+        cleanupOwnedEmptyTempRooms(nextSession.user.id).catch(() => {});
+        cleanupStaleTempRooms().catch(() => {});
       } catch (e) {
-        setError(e.message ?? "Could not join room");
-        setRoom(null);
-        setNickname(null);
-        sessionStorage.removeItem(NICKNAME_KEY);
-      } finally {
-        setLoading(false);
-        setAutoJoining(false);
+        setError(e.message ?? "Could not load profile");
       }
     },
-    [loadRoom, loadSeats, loadMessages],
+    [refreshProfile],
   );
 
-  // Auto-rejoin last nickname on refresh
   useEffect(() => {
-    if (!isConfigured || !supabase) {
-      setAutoJoining(false);
+    if (!isConfigured) {
+      setBooting(false);
       return;
     }
-    const saved = sessionStorage.getItem(NICKNAME_KEY);
-    if (saved?.trim().length >= 2) {
-      enterRoom(saved);
-    } else {
-      setAutoJoining(false);
-    }
-  }, [enterRoom]);
-
-  // Realtime + polling fallback
-  useEffect(() => {
-    if (!nickname || !room || !supabase) return;
 
     let active = true;
-    let pollTimer = null;
-    let seatsOk = false;
-    let messagesOk = false;
 
-    const startPolling = () => {
-      if (pollTimer) return;
-      pollTimer = setInterval(() => {
-        if (active) {
-          loadSeats(room.id);
-          loadMessages(room.id);
-        }
-      }, POLL_MS);
-    };
+    (async () => {
+      const existing = await getSession();
+      if (!active) return;
+      await bootstrapUser(existing);
+      if (active) setBooting(false);
+    })();
 
-    const stopPolling = () => {
-      if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
-    };
-
-    const checkLive = () => {
-      const ok = seatsOk && messagesOk;
-      setLive(ok);
-      if (ok) stopPolling();
-      else startPolling();
-    };
-
-    const seatsChannel = supabase
-      .channel(`seats-${room.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "seats", filter: `room_id=eq.${room.id}` },
-        () => loadSeats(room.id),
-      )
-      .subscribe((status) => {
-        if (!active) return;
-        seatsOk = status === "SUBSCRIBED";
-        checkLive();
-      });
-
-    const messagesChannel = supabase
-      .channel(`messages-${room.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "messages", filter: `room_id=eq.${room.id}` },
-        () => loadMessages(room.id),
-      )
-      .subscribe((status) => {
-        if (!active) return;
-        messagesOk = status === "SUBSCRIBED";
-        checkLive();
-      });
-
-    // Poll until realtime connects
-    startPolling();
-    const bootPoll = setTimeout(() => {
-      if (active && seatsOk && messagesOk) stopPolling();
-    }, 500);
+    const unsubscribe = onAuthChange((nextSession) => {
+      bootstrapUser(nextSession);
+    });
 
     return () => {
       active = false;
-      stopPolling();
-      clearTimeout(bootPoll);
-      setLive(false);
-      supabase.removeChannel(seatsChannel);
-      supabase.removeChannel(messagesChannel);
+      unsubscribe();
     };
-  }, [nickname, room, loadSeats, loadMessages]);
+  }, [bootstrapUser]);
+
+  // Live coin balance when wallet row changes (gifts, rewards, purchases)
+  useEffect(() => {
+    if (!session?.user?.id || isSuperAdmin) return undefined;
+
+    const userId = session.user.id;
+    let active = true;
+
+    const unsubWallet = subscribeWallet(userId, (balance) => {
+      if (active) setCoins(balance);
+    });
+
+    const poll = setInterval(() => {
+      fetchWalletCoins(userId)
+        .then((c) => {
+          if (active && c != null) setCoins(c);
+        })
+        .catch(() => {});
+    }, 5000);
+
+    return () => {
+      active = false;
+      clearInterval(poll);
+      unsubWallet();
+    };
+  }, [session?.user?.id, isSuperAdmin]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (!session?.user?.id || !supabase) return undefined;
+    const userId = session.user.id;
+    const channel = supabase
+      .channel(`profile-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `id=eq.${userId}`,
+        },
+        (payload) => {
+          if (payload.new) setProfile(payload.new);
+        },
+      )
+      .subscribe();
 
-  async function claimSeat(seatNumber) {
-    if (!room || !supabase) return;
-    setError(null);
-
-    const target = seatMap[seatNumber];
-    if (isSeatTaken(target) && target.user_id !== userId) {
-      setError("Seat is already taken");
-      return;
-    }
-
-    await supabase
-      .from("seats")
-      .update({ user_id: null, nickname: null })
-      .eq("room_id", room.id)
-      .eq("user_id", userId);
-
-    const { error: updateError } = await supabase
-      .from("seats")
-      .update({ user_id: userId, nickname })
-      .eq("room_id", room.id)
-      .eq("seat_number", seatNumber);
-
-    if (updateError) setError(updateError.message);
-  }
-
-  async function leaveSeat() {
-    if (!room || !supabase) return;
-    setError(null);
-
-    const { error: updateError } = await supabase
-      .from("seats")
-      .update({ user_id: null, nickname: null })
-      .eq("room_id", room.id)
-      .eq("user_id", userId);
-
-    if (updateError) setError(updateError.message);
-  }
-
-  function handleSeatClick(seatNumber) {
-    const occupant = seatMap[seatNumber];
-    if (occupant?.user_id === userId) {
-      leaveSeat();
-      return;
-    }
-    if (!isSeatTaken(occupant)) {
-      claimSeat(seatNumber);
-    }
-  }
-
-  async function sendMessage(e) {
-    e.preventDefault();
-    const text = chatInput.trim();
-    if (!text || !room || !supabase) return;
-
-    setError(null);
-    setChatInput("");
-
-    const tempId = `temp-${Date.now()}`;
-    const optimistic = {
-      id: tempId,
-      room_id: room.id,
-      user_id: userId,
-      nickname,
-      message: text,
-      created_at: new Date().toISOString(),
+    return () => {
+      supabase.removeChannel(channel);
     };
-    setMessages((prev) => [...prev, optimistic]);
+  }, [session?.user?.id]);
 
-    const { data, error: sendError } = await supabase
-      .from("messages")
-      .insert({
-        room_id: room.id,
-        user_id: userId,
-        nickname,
-        message: text,
-      })
-      .select()
-      .single();
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("room")?.trim();
+    if (!code) return;
+    setPendingRoomCode(code.toUpperCase());
+    const clean = `${window.location.pathname}${window.location.hash || ""}`;
+    window.history.replaceState({}, "", clean);
+  }, []);
 
-    if (sendError) {
-      setError(sendError.message);
-      setChatInput(text);
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+  useEffect(() => {
+    if (!profile || !pendingRoomCode || activeRoom) return undefined;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const room = await searchRoomByCode(pendingRoomCode);
+        if (cancelled) return;
+        if (room) {
+          const { ok, reason } = await checkRoomEntry(session.user.id, room);
+          if (!ok) {
+            setError(reason ?? "Can't enter this room");
+            return;
+          }
+          setActiveRoom(room);
+          setRoomMinimized(false);
+          saveStoredActiveRoom(room, false);
+          setError(null);
+        } else {
+          setError(`Room ${pendingRoomCode} not found`);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message ?? "Could not join room");
+      } finally {
+        if (!cancelled) setPendingRoomCode(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, pendingRoomCode, activeRoom]);
+
+  useEffect(() => {
+    if (!profile || activeRoom || pendingRoomCode) return undefined;
+
+    const stored = readStoredActiveRoom();
+    if (!stored?.id) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const room = await loadRoomById(stored.id);
+        if (cancelled) return;
+        if (room) {
+          const { ok } = await checkRoomEntry(session.user.id, room);
+          if (!ok) {
+            clearStoredActiveRoom();
+            return;
+          }
+          setActiveRoom(room);
+          setRoomMinimized(false);
+          saveStoredActiveRoom(room, false);
+        } else {
+          clearStoredActiveRoom();
+        }
+      } catch {
+        if (!cancelled) clearStoredActiveRoom();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, activeRoom, pendingRoomCode]);
+
+  async function handleJoinRoom(room) {
+    const { ok, reason } = await checkRoomEntry(session?.user?.id, room);
+    if (!ok) {
+      setError(reason ?? "Can't enter this room");
       return;
     }
+    setActiveRoom(room);
+    setRoomMinimized(false);
+    saveStoredActiveRoom(room, false);
+    setError(null);
+  }
 
-    setMessages((prev) => {
-      const without = prev.filter((m) => m.id !== tempId && m.id !== data.id);
-      return [...without, data];
-    });
+  function handleMinimizeRoom() {
+    setRoomMinimized(true);
+    if (activeRoom) saveStoredActiveRoom(activeRoom, true);
+  }
+
+  function handleReopenRoom() {
+    setRoomMinimized(false);
+    if (activeRoom) saveStoredActiveRoom(activeRoom, false);
   }
 
   function handleLeaveRoom() {
-    if (room && supabase) {
-      supabase
-        .from("seats")
-        .update({ user_id: null, nickname: null })
-        .eq("room_id", room.id)
-        .eq("user_id", userId);
-    }
-    sessionStorage.removeItem(NICKNAME_KEY);
-    joinedAtRef.current = null;
-    setRoom(null);
-    setNickname(null);
-    setJoinInput("");
-    setSeats([]);
-    setMessages([]);
-    setChatInput("");
-    setError(null);
-    setLive(false);
+    setActiveRoom(null);
+    setRoomMinimized(false);
+    clearStoredActiveRoom();
   }
 
-  if (autoJoining) {
+  function handleSignOut() {
+    setSession(null);
+    setProfile(null);
+    setCoins(0);
+    setMyRooms([]);
+    setSavedRooms([]);
+    setActiveRoom(null);
+    setRoomMinimized(false);
+    clearStoredActiveRoom();
+  }
+
+  async function handleSavedRoomsChange() {
+    if (!session?.user?.id) return;
+    const saved = await loadSavedRooms(session.user.id);
+    setSavedRooms(saved);
+  }
+
+  if (booting) {
     return (
       <div className="app">
         <div className="join-screen">
           <h1>G-play</h1>
-          <p className="subtitle">Rejoining room…</p>
+          <p className="subtitle">Loading…</p>
         </div>
       </div>
     );
   }
 
-  if (!nickname || !room) {
+  if (!session?.user) {
+    return <LoginScreen />;
+  }
+
+  if (!profile) {
     return (
-      <div className="app">
-        <div className="join-screen">
-          <h1>G-play</h1>
-          <p className="subtitle">Live voice room</p>
-
-          {!isConfigured && (
-            <p className="banner error">
-              Add your Supabase anon key to <code>.env</code> as VITE_SUPABASE_KEY, then restart
-              the dev server.
-            </p>
-          )}
-
-          {error && <p className="banner error">{error}</p>}
-
-          <input
-            type="text"
-            placeholder="Your nickname"
-            maxLength={24}
-            value={joinInput}
-            onChange={(e) => setJoinInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && enterRoom(joinInput)}
-            autoFocus
-          />
-
-          <button
-            type="button"
-            disabled={joinInput.trim().length < 2 || !isConfigured || loading}
-            onClick={() => enterRoom(joinInput)}
-          >
-            {loading ? "Joining…" : "Join Global Room"}
-          </button>
-
-          <p className="hint">Open two browser windows with different nicknames to test.</p>
-        </div>
-      </div>
+      <ProfileSetupScreen
+        error={error}
+        onRetry={async () => {
+          await bootstrapUser(session);
+        }}
+      />
     );
   }
 
-  const roomName = room.name ?? "Global Room";
+  const showLobby = !activeRoom || roomMinimized;
+  const persistentMyRooms = myRooms.filter((room) => !room.is_temp);
+  const persistentSavedRooms = savedRooms.filter((room) => !room.is_temp);
+  const activeVipLevel = effectiveVipLevel(profile);
 
   return (
-    <div className="app">
-      <header className="room-header">
-        <div>
-          <h1>{roomName}</h1>
-          <p className="role">
-            {mySeat ? `Seat ${mySeat} · seated` : "Audience · no seat"}
-            <span className={`live-dot ${live ? "live-dot--on" : ""}`}>
-              {live ? " · live" : " · syncing…"}
-            </span>
-          </p>
-        </div>
-        <button type="button" className="text-btn" onClick={handleLeaveRoom}>
-          Leave
-        </button>
-      </header>
-
-      {error && <p className="banner error">{error}</p>}
-      {loading && <p className="banner">Loading…</p>}
-
-      <section className="seats">
-        {SEAT_LAYOUT.map((row, rowIndex) => (
-          <div key={rowIndex} className={`seat-row ${row.length === 2 ? "seat-row--two" : ""}`}>
-            {row.map((num) => {
-              const seat = seatMap[num];
-              const isMine = seat?.user_id === userId;
-              const isEmpty = !isSeatTaken(seat);
-
-              return (
-                <button
-                  key={num}
-                  type="button"
-                  className="seat"
-                  disabled={!isEmpty && !isMine}
-                  onClick={() => handleSeatClick(num)}
-                >
-                  <span
-                    className={`seat-avatar ${isMine ? "seat-avatar--mine" : ""} ${isEmpty ? "seat-avatar--empty" : ""}`}
-                  >
-                    {isEmpty ? "+" : seatInitial(seat)}
-                  </span>
-                  <span className="seat-label">
-                    {isEmpty ? `Seat ${num}` : seat.nickname || "Guest"}
-                  </span>
-                  {isMine && <span className="seat-hint">tap to leave</span>}
-                </button>
-              );
-            })}
-          </div>
-        ))}
-      </section>
-
-      <p className="seat-help">Tap an empty seat to sit. Tap your seat to leave or pick another to move.</p>
-
-      <section className="chat">
-        <div className="chat-messages">
-          {messages.length === 0 && (
-            <p className="chat-empty">No messages this session. Say hello.</p>
-          )}
-          {messages.map((msg) => (
-            <div key={msg.id} className="chat-message">
-              <span className="chat-author">{msg.nickname || "Guest"}</span>
-              <span className="chat-text">{msg.message}</span>
-            </div>
-          ))}
-          <div ref={chatEndRef} />
-        </div>
-
-        <form className="chat-form" onSubmit={sendMessage}>
-          <input
-            type="text"
-            placeholder="Type a message…"
-            maxLength={300}
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
+    <DmCallProvider userId={session.user.id} displayName={profile.display_name}>
+      {activeRoom && (
+        <div className={`room-layer ${roomMinimized ? "room-layer--hidden" : ""}`}>
+          <RoomView
+            room={activeRoom}
+            userId={session.user.id}
+            displayName={profile.display_name}
+            avatarUrl={profile.avatar_url}
+            coins={coins}
+            isSuperAdmin={isSuperAdmin}
+            vipLevel={activeVipLevel}
+            onCoinsChange={setCoins}
+            onProfileUpdate={setProfile}
+            onMinimize={handleMinimizeRoom}
+            onLeave={handleLeaveRoom}
+            onSavedRoomsChange={handleSavedRoomsChange}
           />
-          <button type="submit" disabled={!chatInput.trim()}>
-            Send
-          </button>
-        </form>
-      </section>
-    </div>
+        </div>
+      )}
+
+      {showLobby && (
+        <>
+          {error && <p className="banner error app-banner">{error}</p>}
+          <LobbyScreen
+            profile={profile}
+            coins={coins}
+            isSuperAdmin={isSuperAdmin}
+            userId={session.user.id}
+            myRooms={persistentMyRooms}
+            savedRooms={persistentSavedRooms}
+            hasActiveRoom={Boolean(activeRoom)}
+            onJoinRoom={handleJoinRoom}
+            onCoinsChange={setCoins}
+            onRefreshRooms={() => refreshProfile(session.user.id)}
+            onProfileUpdate={setProfile}
+            onSignOut={handleSignOut}
+          />
+        </>
+      )}
+
+      {activeRoom && roomMinimized && (
+        <button
+          type="button"
+          className="float-room-btn"
+          onClick={handleReopenRoom}
+          aria-label="Reopen voice room"
+        >
+          <span className="float-room-icon">🎙️</span>
+          <span className="float-room-label">{activeRoom.name}</span>
+        </button>
+      )}
+    </DmCallProvider>
   );
 }

@@ -2,6 +2,7 @@ import { Component, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import "./App.css";
+import "./styles/games.css";
 
 class ErrorBoundary extends Component {
   state = { error: null };

@@ -1,0 +1,15 @@
+# Deploy game socket server (free) — required for Room Games on GitHub Pages.
+# Dashboard: New → Blueprint → connect this repo, or use Render "Deploy" button in README.
+services:
+  - type: web
+    name: g-play-socket
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: CLIENT_ORIGIN
+        value: https://zaheerzxm.github.io

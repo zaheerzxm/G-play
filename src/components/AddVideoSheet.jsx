@@ -1,0 +1,41 @@
+import { useState } from "react";
+import { createPortal } from "react-dom";
+
+export default function AddVideoSheet({ busy, onSubmit, onClose }) {
+  const [url, setUrl] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!url.trim() || busy) return;
+    onSubmit(url.trim());
+  };
+
+  return createPortal(
+    <div className="add-video-backdrop" onClick={onClose}>
+      <div className="add-video-sheet" onClick={(e) => e.stopPropagation()}>
+        <h3>Add a YouTube video</h3>
+        <p>Paste a YouTube link — everyone in the room will watch together.</p>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="url"
+            className="add-video-input"
+            placeholder="https://youtube.com/watch?v=…"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            autoFocus
+            disabled={busy}
+          />
+          <div className="add-video-actions">
+            <button type="button" className="add-video-cancel" onClick={onClose} disabled={busy}>
+              Cancel
+            </button>
+            <button type="submit" className="add-video-ok" disabled={busy || !url.trim()}>
+              {busy ? "Adding…" : "Add video"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body,
+  );
+}

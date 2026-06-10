@@ -1,21 +1,16 @@
-# Dependencies
 node_modules/
-
-# Build
 dist/
-
-# Environment & secrets
 .env
 .env.local
 .env.*.local
-
-# Vite
 .vite/
-
-# OS & editor
 .DS_Store
 Thumbs.db
 *.log
 .idea/
 .vscode/
+
 .video-frames/
+reference-frames/
+reference-frames-025/
+public/G-play-extracted/
