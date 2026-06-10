@@ -6,7 +6,6 @@ const MAX_ATTEMPTS = 6;
 const WORD_LEN = 5;
 const COUNTDOWN_START = 3;
 const COUNTDOWN_STEP_MS = 1000;
-const ROUND_MS = 180000;
 const ROUND_END_MS = 6000;
 
 function playerProgress(p, includeGuesses = false) {
@@ -198,13 +197,10 @@ function beginWordlePlay(game, io, roomId, getMembers) {
   game.phase = "playing";
   state.countdown = null;
   state.roundStartedAt = Date.now();
-  game.endsAt = state.roundStartedAt + ROUND_MS;
+  game.endsAt = null;
 
   const members = getMembers?.() ?? [];
   broadcastWordleState(io, roomId, game, members);
-
-  const roundTimer = setTimeout(() => finishWordleRound(game, io, roomId, getMembers), ROUND_MS);
-  game.timers.push(roundTimer);
 }
 
 function finishWordleRound(game, io, roomId, getMembers) {
@@ -254,7 +250,8 @@ export function handleWordleGuess(game, userId, rawGuess, io, roomId, getMembers
   const result = evaluateGuess(guess, game._state.secretWord);
   player.guesses.push({ guess, result });
 
-  if (result.every((r) => r === "correct")) {
+  const solvedNow = result.every((r) => r === "correct");
+  if (solvedNow) {
     player.solved = true;
     player.solveTimeMs = Date.now() - (game._state.roundStartedAt ?? Date.now());
     if (!game.winnerId) game.winnerId = userId;
@@ -263,12 +260,15 @@ export function handleWordleGuess(game, userId, rawGuess, io, roomId, getMembers
   const members = getMembers?.() ?? [];
   broadcastWordleState(io, roomId, game, members);
 
-  if (allPlayersFinished(game.players)) {
+  if (solvedNow && game.winnerId === userId) {
+    finishWordleRound(game, io, roomId, getMembers);
+  } else if (allPlayersFinished(game.players)) {
     finishWordleRound(game, io, roomId, getMembers);
   }
 
   return {
     ok: true,
+    guess,
     result,
     solved: player.solved,
     attemptsUsed: player.guesses.length,

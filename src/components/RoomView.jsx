@@ -406,6 +406,7 @@ function RoomContent({
   const [gamesWaitingActive, setGamesWaitingActive] = useState(false);
   const [dockChatConfig, setDockChatConfig] = useState(null);
   const liveGameRef = useRef(null);
+  const wordleGuessAckRef = useRef(null);
   const [stickerOpen, setStickerOpen] = useState(false);
   const [coinShopOpen, setCoinShopOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -705,6 +706,12 @@ function RoomContent({
     const t = setTimeout(() => setToast(null), 2200);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    if (!error) return;
+    setToast(error);
+    setError(null);
+  }, [error]);
 
   useEffect(() => {
     return () => {
@@ -2465,6 +2472,10 @@ function RoomContent({
         guess: word,
       });
       if (guessRes.ok) {
+        wordleGuessAckRef.current?.({
+          guess: word,
+          result: guessRes.result,
+        });
         setChatInput("");
         return;
       }
@@ -3022,7 +3033,6 @@ function RoomContent({
         />
 
         {toast && <p className="stage-toast">{toast}</p>}
-        {error && <p className="banner error stage-banner">{error}</p>}
         {inviteSeatUser && (
           <div className="stage-seat-picker-hint">
             <span>Choose an empty seat for {inviteSeatUser.nickname || "user"}</span>
@@ -3217,8 +3227,12 @@ function RoomContent({
             onSessionActiveChange={setGamesSessionActive}
             onWaitingGameChange={setGamesWaitingActive}
             onDockChatConfig={setDockChatConfig}
+            onGameToast={setToast}
             chatDraft={chatInput}
+            wordleGuessAckRef={wordleGuessAckRef}
             liveGameRef={liveGameRef}
+            avatarUrl={avatarUrl}
+            seatNumber={mySeat}
           />
         </div>
 

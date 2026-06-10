@@ -189,7 +189,7 @@ io.on("connection", (socket) => {
 
       const room = getRoom(roomId);
       const lobby = ensureGameLobby(room);
-      if (gameType !== "trivia" && gameType !== "draw" && gameType !== "wordle") {
+      if (gameType !== "trivia" && gameType !== "draw" && gameType !== "wordle" && gameType !== "mafia") {
         throw new Error("Unknown game type");
       }
       lobby.selectedType = gameType;

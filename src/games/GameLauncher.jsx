@@ -12,6 +12,7 @@ import GameResults from "./GameResults.jsx";
 import TriviaGame from "./trivia/TriviaGame.jsx";
 import DrawGuessGame from "./draw/DrawGuessGame.jsx";
 import WordBattleGame from "./wordle/WordBattleGame.jsx";
+import MafiaGame from "./mafia/MafiaGame.jsx";
 
 const EMPTY_LOBBY = { selectedType: null, players: [] };
 
@@ -26,14 +27,20 @@ export default function GameLauncher({
   onSessionActiveChange,
   onWaitingGameChange,
   onDockChatConfig,
+  onGameToast,
   chatDraft = "",
+  wordleGuessAckRef,
   liveGameRef,
+  avatarUrl,
+  seatNumber,
 }) {
   const [gameState, setGameState] = useState(null);
   const [gameLobby, setGameLobby] = useState(EMPTY_LOBBY);
   const [joined, setJoined] = useState(false);
-  const [error, setError] = useState(null);
   const [socketReady, setSocketReady] = useState(false);
+  const [mafiaMode, setMafiaMode] = useState(false);
+  const [mafiaSession, setMafiaSession] = useState(false);
+  const [mafiaWaiting, setMafiaWaiting] = useState(false);
   const applyRef = useRef(null);
 
   const isFinished = gameState?.phase === "finished";
@@ -47,7 +54,14 @@ export default function GameLauncher({
   const showGame = stageActive && gameInProgress && (inActivePlayers || (isWordle && !isFinished));
   const showWordleSpectator = showGame && isWordle && !inActivePlayers;
   const showResults = stageActive && gameState?.type && isFinished && (inActivePlayers || isWordle);
-  const showLobby = stageActive && !showGame && !showResults;
+  const showMafia = stageActive && (mafiaMode || mafiaSession || mafiaWaiting);
+  const showLobby = stageActive && !showGame && !showResults && !showMafia;
+
+  const notify = useCallback((msg) => {
+    if (!msg) return;
+    console.warn("[games]", msg);
+    onGameToast?.(msg);
+  }, [onGameToast]);
 
   const applyRoomGame = useCallback((room, game) => {
     if (room?.gameLobby) {
@@ -81,12 +95,35 @@ export default function GameLauncher({
   applyRef.current = applyRoomGame;
 
   useEffect(() => {
-    onSessionActiveChange?.(Boolean(showGame));
-  }, [showGame, onSessionActiveChange]);
+    if (!wordleGuessAckRef) return undefined;
+    wordleGuessAckRef.current = ({ guess, result }) => {
+      if (!guess || !result?.length) return;
+      setGameState((prev) => {
+        if (!prev || prev.type !== "wordle") return prev;
+        const myGuesses = prev.myGuesses ?? [];
+        if (myGuesses.some((g) => g.guess === guess)) return prev;
+        const nextGuesses = [...myGuesses, { guess, result }];
+        const solved = result.every((r) => r === "correct");
+        return {
+          ...prev,
+          myGuesses: nextGuesses,
+          mySolved: solved || prev.mySolved,
+          myFinished: solved || nextGuesses.length >= (prev.maxAttempts ?? 6),
+        };
+      });
+    };
+    return () => {
+      wordleGuessAckRef.current = null;
+    };
+  }, [wordleGuessAckRef]);
 
   useEffect(() => {
-    onWaitingGameChange?.(Boolean(showLobby));
-  }, [showLobby, onWaitingGameChange]);
+    onSessionActiveChange?.(Boolean(showGame) || mafiaSession);
+  }, [showGame, mafiaSession, onSessionActiveChange]);
+
+  useEffect(() => {
+    onWaitingGameChange?.(Boolean(showLobby) || mafiaWaiting);
+  }, [showLobby, mafiaWaiting, onWaitingGameChange]);
 
   useEffect(() => {
     if (!onDockChatConfig) return;
@@ -133,8 +170,10 @@ export default function GameLauncher({
       setGameState(null);
       setGameLobby(EMPTY_LOBBY);
       setJoined(false);
-      setError(null);
       setSocketReady(false);
+      setMafiaMode(false);
+      setMafiaSession(false);
+      setMafiaWaiting(false);
       disconnectSocket();
     }
   }, [stageActive]);
@@ -153,14 +192,14 @@ export default function GameLauncher({
 
     const unavailable = getGamesServerMessage();
     if (unavailable) {
-      setError(unavailable);
+      console.warn("[games]", unavailable);
       setSocketReady(false);
       return undefined;
     }
 
     const socket = connectSocket();
     if (!socket) {
-      setError(getGamesServerMessage() || "Game server not available");
+      console.warn("[games]", getGamesServerMessage() || "Game server not available");
       setSocketReady(false);
       return undefined;
     }
@@ -192,14 +231,8 @@ export default function GameLauncher({
       if (res.ok && res.state) {
         applyRef.current?.(res.state, res.state.activeGame);
         setSocketReady(true);
-        setError(null);
       } else {
-        const target = resolveSocketUrl();
-        setError(
-          target
-            ? `${res.error ?? "Could not connect to game server"} (${target})`
-            : (res.error ?? "Could not connect to game server"),
-        );
+        console.warn("[games]", res.error ?? "Could not connect to game server");
       }
     });
 
@@ -215,62 +248,69 @@ export default function GameLauncher({
   }, [stageActive, roomId, userId, userName, canHost, ownerUserId]);
 
   const selectGame = useCallback(async (gameType) => {
-    setError(null);
+    if (gameType === "mafia") {
+      setMafiaMode(true);
+      setGameLobby((prev) => ({ ...prev, selectedType: "mafia" }));
+      emitAck("selectGame", { roomId, userId, gameType }).catch(() => {});
+      return;
+    }
+    setMafiaMode(false);
     setGameLobby((prev) => ({ ...prev, selectedType: gameType }));
     const res = await emitAck("selectGame", { roomId, userId, gameType });
     if (!res.ok) {
-      setError(res.error ?? "Could not select game");
+      notify(res.error ?? "Could not select game");
       await emitAck("getGameState", { roomId }).then((r) => {
         if (r.ok && r.state) applyRoomGame(r.state, r.state.activeGame);
       });
       return;
     }
     if (res.room) applyRoomGame(res.room, res.room.activeGame ?? null);
-  }, [roomId, userId, applyRoomGame]);
+  }, [roomId, userId, applyRoomGame, notify]);
 
   const beginGame = useCallback(async () => {
     if (!socketReady) {
-      setError("Connecting to game server… try again in a moment");
+      notify("Connecting to game server… try again in a moment");
       return;
     }
-    setError(null);
     const res = await emitAck("beginGame", { roomId, userId });
     if (!res.ok) {
-      setError(res.error ?? "Could not start game");
+      notify(res.error ?? "Could not start game");
       return;
     }
     if (res.room) applyRoomGame(res.room, res.game);
     else if (res.game) setGameState(res.game);
-  }, [socketReady, roomId, userId, applyRoomGame]);
+  }, [socketReady, roomId, userId, applyRoomGame, notify]);
 
   const joinGame = useCallback(async () => {
-    if (!socketReady) {
-      setError("Still connecting to game server… wait a moment and try again");
+    if (gameLobby.selectedType === "mafia") {
+      setMafiaMode(true);
       return;
     }
-    setError(null);
+    if (!socketReady) {
+      notify("Still connecting to game server… wait a moment and try again");
+      return;
+    }
     const res = await emitAck("joinGame", { roomId, userId, userName });
     if (!res.ok) {
-      setError(res.error ?? "Could not join");
+      notify(res.error ?? "Could not join");
       return;
     }
     if (res.room) applyRoomGame(res.room, res.room.activeGame);
-  }, [socketReady, roomId, userId, userName, applyRoomGame]);
+  }, [gameLobby.selectedType, socketReady, roomId, userId, userName, applyRoomGame, notify]);
 
   const leaveLobby = useCallback(async () => {
-    setError(null);
     const res = await emitAck("leaveGameLobby", { roomId, userId });
     if (!res.ok) {
-      setError(res.error ?? "Could not leave");
+      notify(res.error ?? "Could not leave");
       return;
     }
     if (res.room) applyRoomGame(res.room, res.room.activeGame);
-  }, [roomId, userId, applyRoomGame]);
+  }, [roomId, userId, applyRoomGame, notify]);
 
   const endGame = useCallback(async (leaveMode = false) => {
     const res = await emitAck("endGame", { roomId, userId });
     if (!res.ok) {
-      setError(res.error ?? "Could not end game");
+      notify(res.error ?? "Could not end game");
       return;
     }
     setGameState(null);
@@ -278,17 +318,16 @@ export default function GameLauncher({
     await emitAck("getGameState", { roomId }).then((r) => {
       if (r.ok && r.state) applyRoomGame(r.state, r.state.activeGame);
     });
-  }, [roomId, userId, canHost, onDeactivateGameMode, applyRoomGame]);
+  }, [roomId, userId, canHost, onDeactivateGameMode, applyRoomGame, notify]);
 
   const startNextWordleRound = useCallback(async () => {
-    setError(null);
     const res = await emitAck("startNextWordleRound", { roomId, userId });
     if (!res.ok) {
-      setError(res.error ?? "Could not start next round");
+      notify(res.error ?? "Could not start next round");
       return;
     }
     if (res.game) setGameState(res.game);
-  }, [roomId, userId]);
+  }, [roomId, userId, notify]);
 
   const replayGame = useCallback(async () => {
     const type = gameLobby.selectedType ?? gameState?.type;
@@ -299,12 +338,12 @@ export default function GameLauncher({
     }
     const res = await emitAck("beginGame", { roomId, userId });
     if (!res.ok) {
-      setError(res.error ?? "Could not replay");
+      notify(res.error ?? "Could not replay");
       return;
     }
     if (res.room) applyRoomGame(res.room, res.game);
     else if (res.game) setGameState(res.game);
-  }, [gameLobby.selectedType, gameState?.type, canHost, roomId, userId, applyRoomGame]);
+  }, [gameLobby.selectedType, gameState?.type, canHost, roomId, userId, applyRoomGame, notify]);
 
   const sendStroke = useCallback((stroke) => {
     getSocket()?.emit("drawStroke", { roomId, userId, stroke });
@@ -319,8 +358,6 @@ export default function GameLauncher({
 
   return (
     <>
-      {error && <p className="game-launcher-error">{error}</p>}
-
       {showLobby && (
         <GameLobby
           canHost={canHost}
@@ -372,6 +409,22 @@ export default function GameLauncher({
           spectator={showWordleSpectator}
           draftGuess={chatDraft}
           onStartNextRound={startNextWordleRound}
+        />
+      )}
+
+      {showMafia && (
+        <MafiaGame
+          roomId={roomId}
+          userId={userId}
+          userName={userName}
+          avatarUrl={avatarUrl}
+          seatNumber={seatNumber}
+          canHost={canHost}
+          mafiaSelected={mafiaMode || gameLobby.selectedType === "mafia"}
+          onSelectMafia={() => setMafiaMode(true)}
+          onSessionActive={setMafiaSession}
+          onWaiting={setMafiaWaiting}
+          onToast={onGameToast}
         />
       )}
     </>

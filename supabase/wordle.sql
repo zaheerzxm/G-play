@@ -2,7 +2,7 @@
 
 create table if not exists wordle_games (
   id uuid primary key default gen_random_uuid(),
-  room_id uuid not null references rooms(id) on delete cascade,
+  room_id text not null references rooms(id) on delete cascade,
   host_id uuid,
   secret_word text not null default '',
   status text not null default 'active' check (status in ('active', 'round_end', 'finished', 'cancelled')),

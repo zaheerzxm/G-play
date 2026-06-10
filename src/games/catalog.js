@@ -20,8 +20,16 @@ export const MINI_GAMES = [
     id: "wordle",
     name: "Word Battle",
     emoji: "🎯",
-    description: "Multiplayer Wordle — same word, fastest solve wins.",
+    description: "Multiplayer Wordle — same word, first to solve wins.",
     players: "2+",
+    live: true,
+  },
+  {
+    id: "mafia",
+    name: "Mafia",
+    emoji: "🕵️",
+    description: "Social deduction on voice — find the Mafia before it's too late.",
+    players: "5-12",
     live: true,
   },
   {

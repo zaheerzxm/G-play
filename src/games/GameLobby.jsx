@@ -16,9 +16,10 @@ export default function GameLobby({
   const live = liveMiniGames();
   const needTwoForDraw = selectedType === "draw" && joinedPlayers.length < 2;
   const needTwoForWordle = selectedType === "wordle" && joinedPlayers.length < 2;
+  const isMafia = selectedType === "mafia";
   const canStart =
     canHost
-    && socketReady
+    && (isMafia || socketReady)
     && selectedType
     && joinedPlayers.length >= 1
     && !needTwoForDraw
@@ -43,7 +44,9 @@ export default function GameLobby({
       </header>
 
       <p className="game-lobby-section-label">
-        {!socketReady
+        {isMafia
+          ? "Mafia uses voice + Supabase — no game server needed"
+          : !socketReady
           ? "Game server not connected"
           : canHost
             ? "Select game"
@@ -58,8 +61,8 @@ export default function GameLobby({
             key={game.id}
             type="button"
             className={`game-card ${selectedType === game.id ? "game-card--picked" : ""}`}
-            disabled={!canHost || gameInProgress || !socketReady}
-            onClick={() => canHost && !gameInProgress && socketReady && onSelectGame(game.id)}
+            disabled={!canHost || gameInProgress || (!socketReady && game.id !== "mafia")}
+            onClick={() => canHost && !gameInProgress && (socketReady || game.id === "mafia") && onSelectGame(game.id)}
           >
             <span className="game-card-emoji">{game.emoji}</span>
             <strong>{game.name}</strong>
@@ -88,10 +91,10 @@ export default function GameLobby({
             <button
               type="button"
               className="game-btn game-btn--primary game-btn--wide"
-              disabled={!socketReady || !selectedType}
+              disabled={(!socketReady && !isMafia) || !selectedType}
               onClick={onJoinGame}
             >
-              {!socketReady ? "Connecting…" : !selectedType ? "Waiting for game pick…" : "Join game"}
+              {!isMafia && !socketReady ? "Connecting…" : !selectedType ? "Waiting for game pick…" : "Join game"}
             </button>
           )}
           {!gameInProgress && joined && (
@@ -141,7 +144,12 @@ export default function GameLobby({
         )}
         {selectedType === "wordle" && joined && !gameInProgress && (
           <p className="game-lobby-draw-hint">
-            Everyone guesses the <strong>same 5-letter word</strong>. Fewest attempts + fastest solve wins the round.
+            Everyone guesses the <strong>same 5-letter word</strong>. <strong>First to solve wins</strong> the round.
+          </p>
+        )}
+        {selectedType === "mafia" && (
+          <p className="game-lobby-draw-hint">
+            <strong>5–12 players</strong> — secret roles, night actions, day discussion on voice, then vote.
           </p>
         )}
       </div>

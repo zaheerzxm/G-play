@@ -3,6 +3,20 @@ import { VoiceContext } from "../context/VoiceContext.jsx";
 import { LIVEKIT_URL, isLiveKitConfigured } from "../livekit.js";
 import { LiveKitConnectionManager, connectToVoiceRoom } from "../livekitManager.js";
 
+function isBenignVoiceError(err) {
+  const msg = String(err?.message ?? err ?? "").toLowerCase();
+  if (!msg) return true;
+  return (
+    msg.includes("abort")
+    || msg.includes("signal connection")
+    || msg.includes("cancel")
+    || msg.includes("disconnect")
+    || msg.includes("client initiated")
+    || msg.includes("leaving")
+    || msg.includes("user aborted")
+  );
+}
+
 export default function VoiceRoom({
   roomName,
   participantName,
@@ -15,7 +29,6 @@ export default function VoiceRoom({
 }) {
   const managerRef = useRef(null);
   const userMicPrefRef = useRef(null);
-  const [voiceError, setVoiceError] = useState(null);
   const [micError, setMicError] = useState(null);
   const [micEnabled, setMicEnabled] = useState(false);
   const [speakerEnabled, setSpeakerEnabled] = useState(true);
@@ -69,8 +82,6 @@ export default function VoiceRoom({
 
     const gen = ++connectGenRef.current;
     onVoiceStatus?.("connecting");
-    setVoiceError(null);
-
     (async () => {
       try {
         await connectToVoiceRoom(manager, {
@@ -83,10 +94,11 @@ export default function VoiceRoom({
         if (gen !== connectGenRef.current) return;
         setMicEnabled(manager.isMicrophoneEnabled);
         setSpeakerEnabled(manager.isSpeakerEnabled);
-        setVoiceError(null);
       } catch (e) {
         if (gen !== connectGenRef.current) return;
-        setVoiceError(e.message ?? "Voice connection failed");
+        if (!isBenignVoiceError(e)) {
+          console.warn("[voice]", e.message ?? e);
+        }
         onVoiceStatus?.("error");
         setVoiceReady(false);
       }
@@ -224,7 +236,6 @@ export default function VoiceRoom({
 
   return (
     <VoiceContext.Provider value={voiceContext}>
-      {voiceError && <p className="banner voice-banner">{voiceError}</p>}
       {children}
     </VoiceContext.Provider>
   );

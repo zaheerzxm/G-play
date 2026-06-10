@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import "./App.css";
 import "./styles/games.css";
+import "./styles/mafia.css";
 
 class ErrorBoundary extends Component {
   state = { error: null };

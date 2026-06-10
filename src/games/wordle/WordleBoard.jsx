@@ -6,23 +6,40 @@ const TILE_STATE = {
   absent: "wordle-tile--absent",
 };
 
-function Tile({ letter, state, flipDelay = 0, pop = false }) {
+function Tile({ letter, state, revealDelay = 0 }) {
+  const revealed = Boolean(state);
   return (
     <motion.div
-      className={`wordle-tile ${state ? TILE_STATE[state] : ""} ${letter && !state ? "wordle-tile--filled" : ""}`}
+      className={`wordle-tile ${revealed ? TILE_STATE[state] : ""} ${letter && !revealed ? "wordle-tile--filled" : ""}`}
       initial={false}
       animate={{
-        scale: pop ? [1, 1.12, 1] : 1,
-        rotateX: state ? [0, 90, 0] : 0,
+        scale: revealed ? [1, 1.06, 1] : 1,
       }}
       transition={{
-        scale: { duration: 0.35, ease: "easeOut" },
-        rotateX: { delay: flipDelay, duration: 0.45, ease: "easeInOut" },
+        scale: { delay: revealDelay, duration: 0.28, ease: "easeOut" },
       }}
-      style={{ transformStyle: "preserve-3d" }}
     >
-      <span>{letter}</span>
+      <span className="wordle-tile-letter">{letter}</span>
     </motion.div>
+  );
+}
+
+function HintLegend() {
+  return (
+    <div className="wordle-hint-legend" aria-label="Color hint legend">
+      <span className="wordle-hint-legend-item">
+        <span className="wordle-hint-swatch wordle-hint-swatch--correct" aria-hidden />
+        Right spot
+      </span>
+      <span className="wordle-hint-legend-item">
+        <span className="wordle-hint-swatch wordle-hint-swatch--present" aria-hidden />
+        Wrong spot
+      </span>
+      <span className="wordle-hint-legend-item">
+        <span className="wordle-hint-swatch wordle-hint-swatch--absent" aria-hidden />
+        Not in word
+      </span>
+    </div>
   );
 }
 
@@ -54,15 +71,20 @@ export default function WordleBoard({
         {letters.map((ch, j) => (
           <Tile
             key={`${i}-${j}`}
-            letter={ch.trim() ? ch : ""}
+            letter={ch.trim() ? ch.toUpperCase() : ""}
             state={g?.result?.[j]}
-            flipDelay={g ? j * 0.08 : 0}
-            pop={celebrate && g && g.result?.every((r) => r === "correct")}
+            revealDelay={g ? j * 0.09 : 0}
           />
         ))}
       </motion.div>,
     );
   }
 
-  return <div className="wordle-board">{rows}</div>;
+  return (
+    <div className="wordle-board-wrap">
+      <div className="wordle-board">{rows}</div>
+      <HintLegend />
+      {celebrate && <p className="wordle-board-win">Solved!</p>}
+    </div>
+  );
 }

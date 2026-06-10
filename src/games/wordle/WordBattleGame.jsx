@@ -55,11 +55,18 @@ export default function WordBattleGame({
   onStartNextRound,
 }) {
   const [livePlayers, setLivePlayers] = useState([]);
+  const [shakeRow, setShakeRow] = useState(false);
   const prevGuessCountRef = useRef(0);
+  const shakeLenRef = useRef(0);
 
   const phase = gameState?.phase ?? "waiting";
   const maxAttempts = gameState?.maxAttempts ?? 6;
   const myGuesses = gameState?.myGuesses ?? [];
+
+  useEffect(() => {
+    shakeLenRef.current = 0;
+    prevGuessCountRef.current = 0;
+  }, [gameState?.roundNumber, phase]);
   const myFinished = gameState?.myFinished ?? false;
   const celebrate = myGuesses.at(-1)?.result?.every((r) => r === "correct");
 
@@ -123,6 +130,18 @@ export default function WordBattleGame({
     prevGuessCountRef.current = myGuesses.length;
   }, [myGuesses, gameState?.gameId, userId]);
 
+  useEffect(() => {
+    if (myGuesses.length <= shakeLenRef.current) return undefined;
+    shakeLenRef.current = myGuesses.length;
+    const latest = myGuesses[myGuesses.length - 1];
+    if (latest?.result && !latest.result.some((r) => r === "correct" || r === "present")) {
+      setShakeRow(true);
+      const t = setTimeout(() => setShakeRow(false), 450);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [myGuesses]);
+
   const ranked = livePlayers.length ? livePlayers : gameState?.players ?? [];
   const previewGuess =
     phase === "playing" && !myFinished && !spectator ? draftGuess : "";
@@ -141,8 +160,8 @@ export default function WordBattleGame({
         <h2>🎯 Word Battle</h2>
         <div className="wordle-game-meta">
           <span>Round {gameState?.roundNumber ?? 1}</span>
-          {phase === "playing" && gameState?.endsAt && (
-            <RoundTimer endsAt={gameState.endsAt} />
+          {phase === "playing" && (
+            <span className="wordle-round-rule">First to solve wins</span>
           )}
         </div>
       </header>
@@ -157,7 +176,7 @@ export default function WordBattleGame({
                 guesses={myGuesses}
                 currentGuess={previewGuess}
                 maxAttempts={maxAttempts}
-                shake={false}
+                shake={shakeRow}
                 celebrate={celebrate}
               />
               {phase === "playing" && !myFinished && (
@@ -219,22 +238,5 @@ export default function WordBattleGame({
         </motion.aside>
       </div>
     </div>
-  );
-}
-
-function RoundTimer({ endsAt }) {
-  const [left, setLeft] = useState(0);
-  useEffect(() => {
-    const tick = () => setLeft(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
-    tick();
-    const t = setInterval(tick, 500);
-    return () => clearInterval(t);
-  }, [endsAt]);
-  const m = Math.floor(left / 60);
-  const s = left % 60;
-  return (
-    <span className="wordle-round-timer">
-      {m}:{String(s).padStart(2, "0")}
-    </span>
   );
 }
