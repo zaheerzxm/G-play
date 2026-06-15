@@ -131,6 +131,7 @@ import AdminAssignSheet from "./AdminAssignSheet.jsx";
 import TransferHostSheet from "./TransferHostSheet.jsx";
 import CoinShopSheet from "./CoinShopSheet.jsx";
 import FunctionsGrid from "./FunctionsGrid.jsx";
+import DrawingWidget from "./DrawingWidget.jsx";
 import ScoreboardSheet from "./ScoreboardSheet.jsx";
 import { IconCrown, IconFire, IconGuard, UiIcon } from "./NavIcons.jsx";
 import RedPacketSheet from "./RedPacketSheet.jsx";
@@ -967,6 +968,40 @@ function RoomContent({
     await mergeProfiles(rows.map((m) => m.user_id).filter(Boolean));
     setMessages((prev) => mergeMessageRows(prev, rows));
   }, [mergeProfiles]);
+
+  const canManageDrawingWidget = canModerate || isRoomOwner;
+  const [drawingWidgetSync, setDrawingWidgetSync] = useState(null);
+
+  const openDrawingWidget = useCallback(async () => {
+    if (!room?.id || !userId) return;
+    if (!canManageDrawingWidget) {
+      setToast("Only the host can open the drawing board");
+      return;
+    }
+    connectSocket();
+    const joinRes = await emitAck("joinRoom", {
+      roomId: room.id,
+      userId,
+      userName: displayName,
+      isHost: canManageDrawingWidget,
+      canManageGames: canManageDrawingWidget,
+      ownerUserId: roomMeta.owner_id ?? null,
+    });
+    if (!joinRes.ok) {
+      setToast(joinRes.error ?? "Could not connect to game server");
+      return;
+    }
+    const res = await emitAck("drawingWidgetOpen", { roomId: room.id, userId });
+    if (!res.ok) {
+      setToast(res.error ?? "Could not open drawing board");
+      return;
+    }
+    if (res.drawingWidget) {
+      setDrawingWidgetSync({ at: Date.now(), ...res.drawingWidget });
+    }
+    await postSystemMessage(room.id, "Drawing board opened");
+    await loadMessages(room.id);
+  }, [room?.id, userId, displayName, roomMeta.owner_id, canManageDrawingWidget, loadMessages]);
 
   const loadPresence = useCallback(async (roomId) => {
     if (!supabase) return;
@@ -3662,7 +3697,7 @@ function RoomContent({
           }}
           onDraw={() => {
             setFunctionsOpen(false);
-            gamesUiRef.current?.openPicker?.();
+            openDrawingWidget();
           }}
           onBigWinner={async () => {
             setFunctionsOpen(false);
@@ -3915,7 +3950,7 @@ function RoomContent({
             },
             onDraw: () => {
               setModeOpen(false);
-              gamesUiRef.current?.openPicker?.();
+              openDrawingWidget();
             },
             onBigWinner: async () => {
               setModeOpen(false);
@@ -4426,6 +4461,22 @@ function RoomContent({
           drops={redPacketRain.drops}
           onGrab={handleGrabRainDrop}
           onDone={handleRainDone}
+        />
+      )}
+
+      {room?.id && userId && (
+        <DrawingWidget
+          roomId={room.id}
+          userId={userId}
+          userName={displayName}
+          ownerUserId={roomMeta.owner_id}
+          canManage={canManageDrawingWidget}
+          syncState={drawingWidgetSync}
+          onCloseSystemMessage={async () => {
+            setDrawingWidgetSync(null);
+            await postSystemMessage(room.id, "Drawing board closed");
+            await loadMessages(room.id);
+          }}
         />
       )}
     </div>

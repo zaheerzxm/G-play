@@ -58,6 +58,23 @@ const io = new Server(httpServer, {
 });
 
 const socketMeta = new Map();
+const drawingWidgets = new Map();
+
+function getDrawingWidget(roomId) {
+  if (!drawingWidgets.has(roomId)) {
+    drawingWidgets.set(roomId, { open: false, strokes: [] });
+  }
+  return drawingWidgets.get(roomId);
+}
+
+function publicDrawingWidget(roomId) {
+  const widget = getDrawingWidget(roomId);
+  return { open: widget.open, strokes: widget.strokes };
+}
+
+function broadcastDrawingWidget(io, roomId) {
+  io.to(roomChannel(roomId)).emit("drawingWidgetState", publicDrawingWidget(roomId));
+}
 
 function roomChannel(roomId) {
   return `room:${roomId}`;
@@ -163,7 +180,11 @@ io.on("connection", (socket) => {
       } else {
         io.to(roomChannel(roomId)).emit("gameStateUpdate", { room: state, game: state.activeGame });
       }
-      const ackState = { ...state, activeGame: personalGameSnapshot(activeGame, userId) ?? state.activeGame };
+      const ackState = {
+        ...state,
+        activeGame: personalGameSnapshot(activeGame, userId) ?? state.activeGame,
+        drawingWidget: publicDrawingWidget(roomId),
+      };
       ack?.({ ok: true, state: ackState });
     } catch (e) {
       ack?.({ ok: false, error: e.message });
@@ -340,6 +361,62 @@ io.on("connection", (socket) => {
       if (!ok) throw new Error("Answer not accepted");
       ack?.({ ok: true });
       io.to(roomChannel(roomId)).emit("gameStateUpdate", { game: game.snapshot() });
+    } catch (e) {
+      ack?.({ ok: false, error: e.message });
+    }
+  });
+
+  socket.on("drawingWidgetOpen", (payload, ack) => {
+    try {
+      const { roomId, userId } = payload ?? {};
+      if (!roomId || !userId) throw new Error("roomId and userId required");
+      if (!canManageGame(roomId, userId)) throw new Error("Only host or admin can open the drawing board");
+      if (!getMember(roomId, userId)) throw new Error("Join the voice room first");
+      const widget = getDrawingWidget(roomId);
+      widget.open = true;
+      widget.strokes = [];
+      broadcastDrawingWidget(io, roomId);
+      ack?.({ ok: true, drawingWidget: publicDrawingWidget(roomId) });
+    } catch (e) {
+      ack?.({ ok: false, error: e.message });
+    }
+  });
+
+  socket.on("drawingWidgetClose", (payload, ack) => {
+    try {
+      const { roomId, userId } = payload ?? {};
+      if (!roomId || !userId) throw new Error("roomId and userId required");
+      if (!canManageGame(roomId, userId)) throw new Error("Only host or admin can close the drawing board");
+      const widget = getDrawingWidget(roomId);
+      widget.open = false;
+      widget.strokes = [];
+      broadcastDrawingWidget(io, roomId);
+      ack?.({ ok: true, drawingWidget: publicDrawingWidget(roomId) });
+    } catch (e) {
+      ack?.({ ok: false, error: e.message });
+    }
+  });
+
+  socket.on("drawingWidgetStroke", (payload) => {
+    const { roomId, userId, stroke } = payload ?? {};
+    if (!roomId || !userId || !stroke) return;
+    const widget = getDrawingWidget(roomId);
+    if (!widget.open) return;
+    if (!getMember(roomId, userId)) return;
+    widget.strokes.push(stroke);
+    socket.to(roomChannel(roomId)).emit("drawingWidgetStroke", { stroke, userId });
+  });
+
+  socket.on("drawingWidgetClear", (payload, ack) => {
+    try {
+      const { roomId, userId } = payload ?? {};
+      if (!roomId || !userId) throw new Error("roomId and userId required");
+      if (!canManageGame(roomId, userId)) throw new Error("Only host or admin can clear the board");
+      const widget = getDrawingWidget(roomId);
+      if (!widget.open) throw new Error("Drawing board is not open");
+      widget.strokes = [];
+      io.to(roomChannel(roomId)).emit("drawingWidgetClear", { roomId });
+      ack?.({ ok: true });
     } catch (e) {
       ack?.({ ok: false, error: e.message });
     }

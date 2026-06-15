@@ -31831,3 +31831,91 @@ button.G-play-chat-row {
   cursor: not-allowed;
 }
 
+/* Collaborative drawing widget (voice room overlay) */
+.drawing-widget-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 73;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  pointer-events: none;
+}
+
+.drawing-widget-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+
+.drawing-widget-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(96vw, 26rem);
+  max-height: min(88vh, 36rem);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.drawing-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid #f4f4f5;
+}
+
+.drawing-widget-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #18181b;
+}
+
+.drawing-widget-close {
+  border: none;
+  background: #f4f4f5;
+  color: #52525b;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.drawing-widget-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.drawing-widget-canvas {
+  flex: 1;
+  min-height: 14rem;
+  background: #fafafa;
+}
+
+.drawing-widget-canvas .draw-canvas-wrap,
+.drawing-widget-canvas .draw-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.drawing-widget-panel .draw-toolbar {
+  border-top: 1px solid #f4f4f5;
+  border-radius: 0;
+}
+
+.drawing-widget-panel .draw-tool-btn--save {
+  display: none;
+}
+
