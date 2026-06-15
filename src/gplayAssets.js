@@ -40,3 +40,19 @@ export function giftIconFor(giftId) {
   const file = GIFT_ICON_MAP[giftId];
   return file ? gplayUrl(file) : null;
 }
+
+/** Illustrated lobby / in-room game tile art when available. */
+const GAME_ICON_MAP = {
+  mafia: "fairygui_discount_box_wolf.png",
+  wordle: "fairygui_egg.png",
+  draw: "fairygui_new.png",
+  trivia: "fairygui_discount_box.png",
+  ddd: "fairygui_discount_box_wolf.png",
+  uno: "textures_vip.png",
+  ludo: "textures_vip.png",
+};
+
+export function gameIconFor(gameId) {
+  const file = GAME_ICON_MAP[gameId];
+  return file ? gplayUrl(file) : null;
+}

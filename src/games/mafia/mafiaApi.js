@@ -38,7 +38,8 @@ export async function createMafiaGame(roomId, settings = {}) {
   const { data, error } = await sb.rpc("create_mafia_game", {
     p_room_id: roomId,
     p_day_seconds: settings.daySeconds ?? 90,
-    p_voting_seconds: settings.votingSeconds ?? 45,
+    p_voting_seconds: settings.votingSeconds ?? 10,
+    p_night_seconds: settings.nightSeconds ?? 45,
     p_reveal_on_death: settings.revealOnDeath ?? false,
     p_allow_dead_chat: settings.allowDeadChat ?? true,
     p_nickname: settings.nickname ?? "Host",
@@ -80,6 +81,14 @@ export async function endMafiaGame(gameId) {
   const sb = requireClient();
   const { error } = await sb.rpc("end_mafia_game", { p_game_id: gameId });
   if (error) throw error;
+}
+
+/** Stop any active Mafia lobby/game in this room (host, room owner, or admin). */
+export async function endActiveMafiaGameForRoom(roomId) {
+  const sb = requireClient();
+  const { data, error } = await sb.rpc("end_active_mafia_game_for_room", { p_room_id: roomId });
+  if (error) throw error;
+  return data ?? null;
 }
 
 export async function kickMafiaPlayer(gameId, targetUserId) {

@@ -17,6 +17,8 @@ export default function RoomSettingsSheet({
   onOpenAdmins,
   onOpenBlacklist,
   canAssignAdmins = false,
+  isRoomOwner = false,
+  onOpenTransferHost,
 }) {
   const [title, setTitle] = useState(room.name ?? "");
   const [announcement, setAnnouncement] = useState(room.announcement ?? "");
@@ -24,6 +26,7 @@ export default function RoomSettingsSheet({
   const [backgroundUrl, setBackgroundUrl] = useState(room.background_url ?? "");
   const [backgroundFile, setBackgroundFile] = useState(null);
   const [roomTag, setRoomTag] = useState(normalizeRoomTag(room.room_tag ?? "chats"));
+  const [roomPassword, setRoomPassword] = useState(room.room_password ?? "");
   const [highQuality, setHighQuality] = useState(room.high_quality !== false);
   const [banChat, setBanChat] = useState(Boolean(room.ban_chat));
   const [banImages, setBanImages] = useState(Boolean(room.ban_images));
@@ -75,6 +78,11 @@ export default function RoomSettingsSheet({
     };
   }
 
+  function savePassword() {
+    const next = roomPassword.trim() || null;
+    if (next !== (room.room_password ?? null)) savePatch({ room_password: next });
+  }
+
   return (
     <div className="profile-card-backdrop room-profile-backdrop" onClick={onClose}>
       <div className="room-settings-sheet" onClick={(e) => e.stopPropagation()}>
@@ -116,6 +124,19 @@ export default function RoomSettingsSheet({
           <label className="room-settings-row">
             <span>Mode</span>
             <span className="room-settings-value">{(room.room_mode || "normal").replace(/^\w/, (c) => c.toUpperCase())}</span>
+          </label>
+          <label className="room-settings-row room-settings-row--stack">
+            <span>Room password</span>
+            <input
+              className="room-settings-inline-input"
+              type="password"
+              placeholder="Leave empty for no password"
+              maxLength={32}
+              value={roomPassword}
+              onChange={(e) => setRoomPassword(e.target.value)}
+              onBlur={savePassword}
+              disabled={busy}
+            />
           </label>
           <label className="room-settings-row">
             <span>Tag</span>
@@ -219,6 +240,12 @@ export default function RoomSettingsSheet({
         </div>
 
         <div className="room-settings-group">
+          {isRoomOwner && (
+            <button type="button" className="room-settings-row room-settings-row--link" onClick={onOpenTransferHost}>
+              <span>Transfer Host</span>
+              <span className="room-settings-value">›</span>
+            </button>
+          )}
           {canAssignAdmins && (
             <button type="button" className="room-settings-row room-settings-row--link" onClick={onOpenAdmins}>
               <span>Admin</span>

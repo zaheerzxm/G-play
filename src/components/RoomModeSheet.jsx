@@ -1,9 +1,17 @@
+import {
+  IconChats,
+  IconGames,
+  IconHammer,
+  IconVideo,
+  IconVoiceRoom,
+} from "./NavIcons.jsx";
+
 const MODES = [
-  { key: "normal", label: "Normal", icon: "🎤", hint: "Classic voice chat" },
-  { key: "acquaint", label: "Acquaint", icon: "💬", hint: "Meet new friends" },
-  { key: "auction", label: "Auction", icon: "🔨", hint: "Bid for the mic" },
-  { key: "video", label: "Video", icon: "📹", hint: "Watch together" },
-  { key: "games", label: "Games", icon: "🎮", hint: "Play mini-games" },
+  { key: "normal", label: "Normal", Icon: IconVoiceRoom, hint: "Classic voice chat" },
+  { key: "acquaint", label: "Acquaint", Icon: IconChats, hint: "Meet new friends" },
+  { key: "auction", label: "Auction", Icon: IconHammer, hint: "Bid for the mic" },
+  { key: "video", label: "Video", Icon: IconVideo, hint: "Watch together" },
+  { key: "games", label: "Games", Icon: IconGames, hint: "Play mini-games" },
 ];
 
 export default function RoomModeSheet({ currentMode, canEdit, onPick, onClose }) {
@@ -23,7 +31,7 @@ export default function RoomModeSheet({ currentMode, canEdit, onPick, onClose })
               disabled={!canEdit}
               onClick={() => canEdit && onPick(m.key)}
             >
-              <span className="room-mode-icon">{m.icon}</span>
+              <span className="room-mode-icon"><m.Icon /></span>
               <span className="room-mode-label">{m.label}</span>
               <span className="room-mode-sub">{m.hint}</span>
             </button>

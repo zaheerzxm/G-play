@@ -35,6 +35,33 @@ function missingCommentsTable(error) {
   return /moment_comments|relation .* does not exist|schema cache/i.test(error?.message ?? "");
 }
 
+export async function loadUserMoments(userId, limit = 40) {
+  if (!supabase || !userId) return [];
+
+  const { data, error } = await supabase
+    .from("moments")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) return [];
+
+  const profiles = await loadProfilesForUserIds([userId]);
+  const author = profiles[userId] ?? null;
+
+  const rows = (data ?? []).map((moment) => ({
+    ...moment,
+    author,
+    comments_count: 0,
+  }));
+  if (rows.length) {
+    const counts = await loadCommentCounts(rows.map((m) => m.id));
+    return rows.map((m) => ({ ...m, comments_count: counts[m.id] ?? 0 }));
+  }
+  return rows;
+}
+
 export async function loadMomentsFeed(limit = 30) {
   if (!supabase) return [];
 
@@ -152,16 +179,25 @@ export async function addMomentComment(momentId, userId, content) {
   return { ...data, author: profiles[userId] ?? null };
 }
 
-export async function createMoment(userId, { content, imageUrl = null }) {
+export async function createMoment(userId, { content, imageUrl = null, poll = null }) {
   if (!supabase || !userId) throw new Error("Not signed in");
   const text = content?.trim();
-  if (!text && !imageUrl) throw new Error("Write something or add an image");
+  if (!text && !imageUrl && !poll) throw new Error("Write something, add an image, or create a poll");
+
+  let body = text || (imageUrl ? "📷" : "");
+  if (poll?.options?.length >= 2) {
+    const payload = JSON.stringify({
+      options: poll.options.filter(Boolean).slice(0, 6),
+      days: poll.days ?? 1,
+    });
+    body = `[[poll]]${payload}[[/poll]]${body ? `\n${body}` : ""}`;
+  }
 
   const { data, error } = await supabase
     .from("moments")
     .insert({
       user_id: userId,
-      content: text || "📷",
+      content: body || "📊 Poll",
       image_url: imageUrl,
     })
     .select()

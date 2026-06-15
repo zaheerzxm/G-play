@@ -27,6 +27,7 @@ Deno.serve(async (req) => {
 
     const apiKey = Deno.env.get("LIVEKIT_API_KEY");
     const apiSecret = Deno.env.get("LIVEKIT_API_SECRET");
+    const livekitUrl = Deno.env.get("LIVEKIT_URL")?.trim() || null;
 
     if (!apiKey || !apiSecret) {
       return new Response(
@@ -54,7 +55,7 @@ Deno.serve(async (req) => {
     const jwt = await token.toJwt();
 
     return new Response(
-      JSON.stringify({ token: jwt }),
+      JSON.stringify({ token: jwt, ...(livekitUrl ? { url: livekitUrl } : {}) }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {

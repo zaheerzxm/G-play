@@ -632,6 +632,7 @@ alter table red_packets enable row level security;
 
 drop policy if exists "waiting read" on room_waiting;
 drop policy if exists "waiting write" on room_waiting;
+drop policy if exists "waiting update" on room_waiting;
 drop policy if exists "waiting delete" on room_waiting;
 drop policy if exists "follows read" on user_follows;
 drop policy if exists "follows write" on user_follows;
@@ -642,6 +643,7 @@ drop policy if exists "red_packets insert" on red_packets;
 
 create policy "waiting read" on room_waiting for select using (true);
 create policy "waiting write" on room_waiting for insert with check (true);
+create policy "waiting update" on room_waiting for update using (true) with check (true);
 create policy "waiting delete" on room_waiting for delete using (true);
 
 create policy "follows read" on user_follows for select using (true);
@@ -748,6 +750,7 @@ alter table seats add column if not exists mic_on boolean not null default true;
 do $$ begin alter publication supabase_realtime add table presence; exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table wallets; exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table private_messages; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table gift_transactions; exception when duplicate_object then null; end $$;
 
 -- Charm increments when gifting (cross-user profile updates)
 create or replace function public.add_profile_charm(p_user_id uuid, p_amount bigint)
@@ -2059,3 +2062,227 @@ $$;
 
 grant execute on function public.add_room_admin(text, uuid) to authenticated;
 grant execute on function public.remove_room_admin(text, uuid) to authenticated;
+
+-- Profile location & app activity (online friends)
+alter table profiles add column if not exists country text;
+alter table profiles add column if not exists bio text;
+alter table profiles add column if not exists last_active_at timestamptz;
+create index if not exists profiles_last_active_idx on profiles (last_active_at desc);
+
+-- Free daily guard protect (40 pts, once per pair per day)
+create table if not exists daily_guard_protect (
+  protector_id uuid not null references profiles(id) on delete cascade,
+  target_id uuid not null references profiles(id) on delete cascade,
+  protect_day date not null default (timezone('utc', now()))::date,
+  points int not null default 40,
+  created_at timestamptz not null default now(),
+  primary key (protector_id, target_id, protect_day)
+);
+
+alter table daily_guard_protect enable row level security;
+drop policy if exists "daily_guard_protect read own" on daily_guard_protect;
+drop policy if exists "daily_guard_protect insert own" on daily_guard_protect;
+create policy "daily_guard_protect read own" on daily_guard_protect
+  for select using (auth.uid() = protector_id);
+create policy "daily_guard_protect insert own" on daily_guard_protect
+  for insert with check (auth.uid() = protector_id);
+
+create or replace function public.daily_protect_user(
+  p_protector_id uuid,
+  p_target_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  pts int := 40;
+  guard_result jsonb;
+begin
+  if p_protector_id is null or p_target_id is null or p_protector_id = p_target_id then
+    raise exception 'Invalid users';
+  end if;
+  if auth.uid() is distinct from p_protector_id then
+    raise exception 'Not authorized';
+  end if;
+  if not public.are_mutual_friends(p_protector_id, p_target_id) then
+    raise exception 'Must be mutual friends first';
+  end if;
+
+  insert into daily_guard_protect (protector_id, target_id, protect_day, points)
+  values (p_protector_id, p_target_id, (timezone('utc', now()))::date, pts)
+  on conflict (protector_id, target_id, protect_day) do nothing;
+
+  if not found then
+    raise exception 'Already protected today — come back tomorrow';
+  end if;
+
+  guard_result := public.add_gift_guard_points(p_protector_id, p_target_id, pts);
+  return guard_result || jsonb_build_object('points_added', pts);
+end;
+$$;
+
+grant execute on function public.daily_protect_user(uuid, uuid) to authenticated;
+
+-- 3D avatar config (PLAY Show) — JSON stored per profile
+alter table profiles add column if not exists avatar_3d jsonb;
+
+-- Atomic seat invite accept (BUG-002/003)
+create or replace function public.accept_seat_invite(
+  p_room_id text,
+  p_invitee_id uuid,
+  p_display_name text,
+  p_seat_number int default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invite record;
+  v_target record;
+  v_seat int;
+  v_claimed int;
+  v_keep_mic_on boolean := true;
+begin
+  select *
+  into v_invite
+  from seat_invites
+  where room_id = p_room_id
+    and invitee_id = p_invitee_id
+    and status = 'pending'
+    and created_at >= now() - interval '30 seconds'
+  order by created_at desc
+  limit 1;
+
+  if not found then
+    raise exception 'Invite expired';
+  end if;
+
+  v_seat := coalesce(nullif(p_seat_number, 0), v_invite.seat_number);
+
+  select *
+  into v_target
+  from seats
+  where room_id = p_room_id
+    and seat_number = v_seat
+  for update;
+
+  if not found then
+    raise exception 'Seat not found';
+  end if;
+
+  if v_target.is_locked then
+    raise exception 'This seat is locked';
+  end if;
+
+  if v_target.user_id is not null and v_target.user_id <> p_invitee_id then
+    raise exception 'Seat was just taken';
+  end if;
+
+  select coalesce(mic_on, true)
+  into v_keep_mic_on
+  from seats
+  where room_id = p_room_id
+    and user_id = p_invitee_id
+  limit 1;
+
+  update seats
+  set user_id = null,
+      nickname = null,
+      updated_at = now()
+  where room_id = p_room_id
+    and user_id = p_invitee_id
+    and seat_number <> v_seat;
+
+  update seats
+  set user_id = p_invitee_id,
+      nickname = coalesce(nullif(trim(p_display_name), ''), nickname, 'Guest'),
+      mic_on = v_keep_mic_on,
+      updated_at = now()
+  where room_id = p_room_id
+    and seat_number = v_seat
+    and (user_id is null or user_id = p_invitee_id)
+  returning seat_number into v_claimed;
+
+  if v_claimed is null then
+    raise exception 'Seat was just taken by someone else';
+  end if;
+
+  update seat_invites
+  set status = 'accepted'
+  where room_id = p_room_id
+    and invitee_id = p_invitee_id
+    and status = 'pending';
+
+  return jsonb_build_object('seat_number', v_claimed);
+end;
+$$;
+
+grant execute on function public.accept_seat_invite(text, uuid, text, int) to anon, authenticated;
+
+-- =============================================================================
+-- Room chat retention (TTL + empty temp-room wipe)
+-- =============================================================================
+create index if not exists messages_room_created_idx
+  on messages (room_id, created_at);
+
+create or replace function public.purge_stale_room_messages(
+  p_room_id text default null,
+  p_message_ttl interval default interval '24 hours',
+  p_presence_ttl interval default interval '90 seconds'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ttl_deleted bigint := 0;
+  v_empty_deleted bigint := 0;
+begin
+  with ttl_rows as (
+    delete from messages m
+    where m.created_at < now() - p_message_ttl
+      and (p_room_id is null or m.room_id = p_room_id)
+    returning 1
+  )
+  select count(*) into v_ttl_deleted from ttl_rows;
+
+  with empty_temp as (
+    select r.id as room_id
+    from rooms r
+    where r.is_temp = true
+      and (p_room_id is null or r.id = p_room_id)
+      and not exists (
+        select 1
+        from presence p
+        where p.room_id = r.id
+          and p.last_seen > now() - p_presence_ttl
+      )
+      and not exists (
+        select 1
+        from seats s
+        where s.room_id = r.id
+          and s.user_id is not null
+      )
+  ),
+  empty_rows as (
+    delete from messages m
+    using empty_temp e
+    where m.room_id = e.room_id
+    returning 1
+  )
+  select count(*) into v_empty_deleted from empty_rows;
+
+  return jsonb_build_object(
+    'ttl_deleted', v_ttl_deleted,
+    'empty_temp_deleted', v_empty_deleted
+  );
+end;
+$$;
+
+revoke all on function public.purge_stale_room_messages(text, interval, interval) from public;
+grant execute on function public.purge_stale_room_messages(text, interval, interval) to authenticated;

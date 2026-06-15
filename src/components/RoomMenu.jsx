@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { IconGames, IconHammer, IconHeart, IconHome, IconVideo } from "./NavIcons.jsx";
 
 export default function RoomMenu({
   open,
@@ -46,11 +47,11 @@ export default function RoomMenu({
   if (!open) return null;
 
   const modes = [
-    { key: "normal", icon: "🏠", label: "Normal" },
-    { key: "acquaint", icon: "💕", label: "Acquaint" },
-    { key: "auction", icon: "🔨", label: "Auction", badge: "NEW" },
-    { key: "video", icon: "📺", label: "Video" },
-    { key: "games", icon: "🎮", label: "Games" },
+    { key: "normal", Icon: IconHome, label: "Normal" },
+    { key: "acquaint", Icon: IconHeart, label: "Acquaint" },
+    { key: "auction", Icon: IconHammer, label: "Auction", badge: "NEW" },
+    { key: "video", Icon: IconVideo, label: "Video" },
+    { key: "games", Icon: IconGames, label: "Games" },
   ];
 
   const actions = [
@@ -86,7 +87,7 @@ export default function RoomMenu({
                 }}
               >
                 {mode.badge && <span className="stage-menu-mode-badge">{mode.badge}</span>}
-                <span className="stage-menu-mode-icon">{mode.icon}</span>
+                <span className="stage-menu-mode-icon"><mode.Icon /></span>
                 <span>{mode.label}</span>
               </button>
             ))}

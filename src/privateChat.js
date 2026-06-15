@@ -4,6 +4,24 @@ import { isBlockedEitherWay } from "./userBlocks.js";
 import { loadProfilesForUserIds } from "./profile.js";
 
 export const ROOM_INVITE_RE = /\[\[room:([A-Z0-9]+)\]\]/i;
+export const CLAN_INVITE_RE = /\[\[clan:(\d+)\]\]/i;
+
+const PRIVATE_MESSAGE_COLUMNS =
+  "id, sender_id, recipient_id, message, read_at, created_at";
+
+const DM_THREAD_LIMIT = 50;
+
+export function parseClanInvite(message) {
+  if (!message) return null;
+  const match = String(message).match(CLAN_INVITE_RE);
+  if (!match) {
+    const legacy = String(message).match(/Search Clan ID:\s*(\d+)/i);
+    if (!legacy) return null;
+    return { clanCode: legacy[1], text: String(message).trim() };
+  }
+  const text = String(message).replace(CLAN_INVITE_RE, "").trim();
+  return { clanCode: match[1], text };
+}
 
 export function parseRoomInvite(message) {
   if (!message) return null;
@@ -28,7 +46,7 @@ async function hasRoomInviteBetween(userId, otherUserId) {
   );
 }
 
-export async function loadPrivateMessages(userId, otherUserId, limit = 100) {
+export async function loadPrivateMessages(userId, otherUserId, limit = DM_THREAD_LIMIT) {
   if (!supabase || !userId || !otherUserId) return [];
 
   if (await isBlockedEitherWay(userId, otherUserId)) {
@@ -43,17 +61,15 @@ export async function loadPrivateMessages(userId, otherUserId, limit = 100) {
 
   const { data, error } = await supabase
     .from("private_messages")
-    .select("*")
-    .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
+    .select(PRIVATE_MESSAGE_COLUMNS)
+    .or(
+      `and(sender_id.eq.${userId},recipient_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},recipient_id.eq.${userId})`,
+    )
     .order("created_at", { ascending: true })
-    .limit(limit * 2);
+    .limit(limit);
 
   if (error) throw error;
-  return (data ?? []).filter(
-    (m) =>
-      (m.sender_id === userId && m.recipient_id === otherUserId) ||
-      (m.sender_id === otherUserId && m.recipient_id === userId),
-  ).slice(-limit);
+  return data ?? [];
 }
 
 export async function sendPrivateMessage(senderId, recipientId, text) {
@@ -75,11 +91,20 @@ export async function sendPrivateMessage(senderId, recipientId, text) {
       recipient_id: recipientId,
       message,
     })
-    .select()
+    .select(PRIVATE_MESSAGE_COLUMNS)
     .single();
 
   if (error) throw error;
   return data;
+}
+
+export async function markAllConversationsRead(userId) {
+  if (!supabase || !userId) return;
+  await supabase
+    .from("private_messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("recipient_id", userId)
+    .is("read_at", null);
 }
 
 export async function markMessagesRead(userId, otherUserId) {
@@ -92,10 +117,10 @@ export async function markMessagesRead(userId, otherUserId) {
     .is("read_at", null);
 }
 
-export async function loadConversations(userId) {
+export async function loadConversations(userId, { mutualFriends: preloadedMutual } = {}) {
   if (!supabase || !userId) return [];
 
-  const friends = await loadMutualFriends(userId);
+  const friends = preloadedMutual ?? await loadMutualFriends(userId);
   const byFriend = new Map();
   for (const f of friends) {
     byFriend.set(f.id, { friend: f, lastMessage: null, unread: 0 });
@@ -103,7 +128,7 @@ export async function loadConversations(userId) {
 
   const { data: inviteMsgs, error: inviteErr } = await supabase
     .from("private_messages")
-    .select("*")
+    .select(PRIVATE_MESSAGE_COLUMNS)
     .eq("recipient_id", userId)
     .like("message", "%[[room:%")
     .order("created_at", { ascending: false })
@@ -124,7 +149,7 @@ export async function loadConversations(userId) {
 
   const { data, error } = await supabase
     .from("private_messages")
-    .select("*")
+    .select(PRIVATE_MESSAGE_COLUMNS)
     .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
     .order("created_at", { ascending: false })
     .limit(200);

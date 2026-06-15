@@ -12,12 +12,13 @@ export default function CreateRoomSheet({
 }) {
   const [mode, setMode] = useState(null);
   const [roomName, setRoomName] = useState("");
+  const [roomPassword, setRoomPassword] = useState("");
   const canAdvance = isSuperAdmin || coins >= ROOM_CREATE_COST;
 
   async function handleAdvance() {
     const name = roomName.trim();
     if (!name) return;
-    await onCreateAdvance(name);
+    await onCreateAdvance(name, roomPassword.trim() || null);
   }
 
   return (
@@ -67,6 +68,14 @@ export default function CreateRoomSheet({
               maxLength={32}
               value={roomName}
               onChange={(e) => setRoomName(e.target.value)}
+            />
+            <label className="field-label">Password (optional)</label>
+            <input
+              type="password"
+              placeholder="Leave empty for open room"
+              maxLength={32}
+              value={roomPassword}
+              onChange={(e) => setRoomPassword(e.target.value)}
             />
             <p className="create-room-hint">
               Costs <CoinIcon size="sm" /> {formatCoins(ROOM_CREATE_COST)}. You become the room admin.

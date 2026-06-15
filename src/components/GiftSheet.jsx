@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { formatCoins, GIFT_CATEGORIES, giftsByCategory } from "../gifts.js";
+import { formatCoins, giftRewardRange, GIFT_CATEGORIES, giftsByCategory } from "../gifts.js";
 import { giftIconFor } from "../gplayAssets.js";
 import CoinIcon from "./CoinIcon.jsx";
+import { IconHelp, UiIcon } from "./NavIcons.jsx";
 
 const QTY_OPTIONS = [1, 5, 33, 50, 100];
 
@@ -44,6 +45,15 @@ export default function GiftSheet({
   const vipOk = !gift?.vipRequired || vipLevel >= gift.vipRequired;
   const canSend = gift && giftTarget && !giftBusy && canAfford && vipOk;
 
+  const helperCopy = useMemo(() => {
+    if (tab === "Package") return "Owned gifts — no coin cost";
+    if (!gift) return "";
+    const charm = Math.max(0, Math.floor(Number(gift.charm ?? 0) * qty));
+    if (gift.inventory || (gift.cost ?? 0) <= 0) return `Charm +${charm}`;
+    const { max } = giftRewardRange(gift.cost);
+    return `Charm +${charm}, Gain up to ${max * qty} Gold Coins`;
+  }, [tab, gift, qty]);
+
   return (
     <div className="sheet-backdrop sheet-backdrop--gift" onClick={onClose}>
       <div className="gift-panel" onClick={(e) => e.stopPropagation()}>
@@ -85,9 +95,12 @@ export default function GiftSheet({
             </div>
 
             <p className="gift-panel-hint">
-              {tab === "Package"
-                ? "Use owned gifts — no coin cost, no gold rewards"
-                : "Paid gifts return 1–80% gold, with rare Lucky x3 wins"}
+              <span>{helperCopy}</span>
+              {tab !== "Package" && helperCopy && (
+                <span className="gift-panel-hint-help" aria-hidden>
+                  <UiIcon Icon={IconHelp} />
+                </span>
+              )}
             </p>
 
             <div className="gift-panel-grid gift-panel-grid--wide">
@@ -99,9 +112,13 @@ export default function GiftSheet({
                     key={g.id}
                     type="button"
                     className={`gift-panel-item ${selectedGift === g.id ? "gift-panel-item--selected" : ""} ${locked ? "gift-panel-item--locked" : ""}`}
-                    onClick={() => !locked && setSelectedGift(g.id)}
-                    disabled={locked}
+                    onClick={() => setSelectedGift(g.id)}
                   >
+                    {locked && (
+                      <span className="gift-panel-item-lock" aria-hidden>
+                        🔒 V{g.vipRequired}
+                      </span>
+                    )}
                     {g.badge && <span className={`gift-panel-badge gift-panel-badge--${g.badge}`}>{g.badge}</span>}
                     {giftIconFor(g.id) ? (
                       <img src={giftIconFor(g.id)} alt="" className="gift-panel-item-img" />
@@ -152,6 +169,9 @@ export default function GiftSheet({
               </span>
             )}
             <span className="gift-panel-qty-label">x{qty}</span>
+            {!vipOk && gift?.vipRequired && (
+              <span className="gift-panel-vip-hint">VIP {gift.vipRequired}+ required</span>
+            )}
             <button
               type="button"
               className="gift-panel-send"

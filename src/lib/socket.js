@@ -3,22 +3,8 @@ import { io } from "socket.io-client";
 let socket = null;
 let socketUrl = null;
 
-const STATIC_HOST_SUFFIXES = [
-  ".github.io",
-  ".gitlab.io",
-  ".pages.dev",
-  ".vercel.app",
-  ".netlify.app",
-];
-
 /** Default live game server (Render) — must match render.yaml service name. */
 const LIVE_GAMES_SERVER = "https://g-play-socket.onrender.com";
-
-function isStaticDeployHost(hostname) {
-  return STATIC_HOST_SUFFIXES.some(
-    (suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix),
-  );
-}
 
 function isPrivateLan(hostname) {
   return /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(hostname);
@@ -30,33 +16,36 @@ function isLocalHost(hostname) {
 
 function envSocketUrl() {
   const raw = import.meta.env.VITE_SOCKET_URL?.trim()?.replace(/\/$/, "");
-  if (!raw || /localhost|127\.0\.0\.1/i.test(raw)) return null;
-  return raw;
+  return raw || null;
+}
+
+function useLocalSocketServer() {
+  return import.meta.env.VITE_USE_LOCAL_SOCKET === "1";
 }
 
 /**
- * Socket URL for mini-games.
- * GitHub Pages: uses VITE_SOCKET_URL from production build, or LIVE_GAMES_SERVER fallback.
- * LAN dev: http://<same-ip>:3001
+ * Socket URL for mini-games (Trivia, Draw, Word Battle, lobby sync).
+ * Default: Render for both GitHub Pages and local dev so everyone shares one game server.
+ * Set VITE_USE_LOCAL_SOCKET=1 to use http://<host>:3001 during offline socket dev.
  */
 export function resolveSocketUrl() {
   const configured = envSocketUrl();
+  if (configured) return configured;
 
   if (typeof window === "undefined") {
-    return configured || LIVE_GAMES_SERVER;
+    return LIVE_GAMES_SERVER;
   }
 
   const { hostname } = window.location;
 
-  if (isStaticDeployHost(hostname)) {
-    return configured || LIVE_GAMES_SERVER;
-  }
-
-  if (isLocalHost(hostname) || isPrivateLan(hostname)) {
+  if (
+    useLocalSocketServer()
+    && (isLocalHost(hostname) || isPrivateLan(hostname))
+  ) {
     return `http://${hostname}:3001`;
   }
 
-  return configured || LIVE_GAMES_SERVER;
+  return LIVE_GAMES_SERVER;
 }
 
 export function isLiveGamesServer() {

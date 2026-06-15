@@ -1,7 +1,8 @@
 import { supabase } from "./supabase.js";
 import { leaveWaitingQueue } from "./waitingQueue.js";
 
-const INVITE_TTL_MS = 5000;
+/** Must stay in sync with accept_seat_invite RPC freshness window. */
+const INVITE_TTL_MS = 30_000;
 
 function inviteFreshSince() {
   return new Date(Date.now() - INVITE_TTL_MS).toISOString();
@@ -74,8 +75,31 @@ export async function cancelSeatInvite(roomId, inviteeId) {
     .eq("status", "pending");
 }
 
+async function acceptSeatInviteViaRpc({ roomId, seatNumber, inviteeId, displayName }) {
+  const { data, error } = await supabase.rpc("accept_seat_invite", {
+    p_room_id: roomId,
+    p_invitee_id: inviteeId,
+    p_display_name: displayName,
+    p_seat_number: seatNumber ?? null,
+  });
+  if (error) throw error;
+  const seat = Number(data?.seat_number ?? data?.seatNumber ?? seatNumber);
+  if (!seat) throw new Error("Seat was just taken by someone else");
+  return { seatNumber: seat };
+}
+
 export async function acceptSeatInvite({ roomId, seatNumber, inviteeId, displayName }) {
   if (!supabase) throw new Error("Supabase is not configured");
+
+  try {
+    const accepted = await acceptSeatInviteViaRpc({ roomId, seatNumber, inviteeId, displayName });
+    await leaveWaitingQueue(roomId, inviteeId).catch(() => {});
+    return accepted;
+  } catch (rpcError) {
+    if (!/accept_seat_invite|function .* does not exist/i.test(rpcError?.message ?? "")) {
+      throw rpcError;
+    }
+  }
 
   const { data: invite, error: inviteError } = await supabase
     .from("seat_invites")
@@ -100,15 +124,28 @@ export async function acceptSeatInvite({ roomId, seatNumber, inviteeId, displayN
   if (seat.is_locked) throw new Error("This seat is locked");
   if (seat.user_id && seat.user_id !== inviteeId) throw new Error("Seat was just taken");
 
+  const { data: priorSeat } = await supabase
+    .from("seats")
+    .select("mic_on")
+    .eq("room_id", roomId)
+    .eq("user_id", inviteeId)
+    .maybeSingle();
+  const keepMicOn = priorSeat?.mic_on !== false;
+
   await supabase
     .from("seats")
-    .update({ user_id: null, nickname: null })
+    .update({ user_id: null, nickname: null, updated_at: new Date().toISOString() })
     .eq("room_id", roomId)
     .eq("user_id", inviteeId);
 
   const { data, error: updateError } = await supabase
     .from("seats")
-    .update({ user_id: inviteeId, nickname: displayName })
+    .update({
+      user_id: inviteeId,
+      nickname: displayName,
+      mic_on: keepMicOn,
+      updated_at: new Date().toISOString(),
+    })
     .eq("room_id", roomId)
     .eq("seat_number", invitedSeatNumber)
     .is("user_id", null)

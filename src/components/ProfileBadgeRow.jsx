@@ -11,7 +11,7 @@ function genderSymbol(gender) {
 }
 
 /** WePlay-style pills for white profile surfaces (readable contrast). */
-export default function ProfileBadgeRow({ profile, compact = false }) {
+export default function ProfileBadgeRow({ profile, compact = false, showFamily = false }) {
   if (!profile) return null;
   const level = profile.user_level ?? 1;
   const title = profile.title?.trim();
@@ -31,6 +31,11 @@ export default function ProfileBadgeRow({ profile, compact = false }) {
         <span>{formatCompactNumber(charm)}</span>
       </span>
       <VipBadge level={vip} className="vip-badge--profile" />
+      {showFamily && (
+        <span className="profile-pill profile-pill--clan" title="Clan member">
+          CLAN
+        </span>
+      )}
       {showTitle && (
         <span
           className={`profile-pill profile-pill--club${vip > 0 ? " vip-title-glow" : ""}`}

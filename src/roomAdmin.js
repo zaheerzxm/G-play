@@ -263,6 +263,26 @@ export async function updateRoomSettings(roomId, patch) {
   return data;
 }
 
+export async function transferRoomOwnership(roomId, fromOwnerId, toUserId) {
+  if (!supabase) throw new Error("Supabase is not configured");
+  if (!roomId || !fromOwnerId || !toUserId) throw new Error("Missing room or user");
+  if (fromOwnerId === toUserId) throw new Error("That member is already the owner");
+
+  const { data, error } = await supabase
+    .from("rooms")
+    .update({ owner_id: toUserId })
+    .eq("id", roomId)
+    .eq("owner_id", fromOwnerId)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message ?? "Could not transfer ownership");
+  if (!data) throw new Error("Only the current owner can transfer the room");
+
+  await supabase.from("room_admins").delete().eq("room_id", roomId).eq("user_id", toUserId);
+  return data;
+}
+
 export async function uploadRoomBackground(roomId, ownerId, file) {
   if (!supabase) throw new Error("Supabase is not configured");
   if (!roomId || !ownerId || !file) throw new Error("Choose a background image first");

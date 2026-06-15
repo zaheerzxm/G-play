@@ -25,6 +25,20 @@ export function ringMeta(key) {
   return WEDDING_RING_TYPES.find((r) => r.key === key) ?? WEDDING_RING_TYPES[0];
 }
 
+export function weddingCeremonyPhase(scheduledAt) {
+  if (!scheduledAt) return { status: "unknown", label: "" };
+  const start = new Date(scheduledAt).getTime();
+  if (Number.isNaN(start)) return { status: "unknown", label: "" };
+  const now = Date.now();
+  const diff = start - now;
+  if (diff <= -60 * 60 * 1000) return { status: "past", label: "Completed" };
+  if (diff <= 0) return { status: "live", label: "Happening now" };
+  const mins = Math.ceil(diff / 60000);
+  if (mins < 60) return { status: "soon", label: `Starts in ${mins}m` };
+  const hours = Math.floor(mins / 60);
+  return { status: "upcoming", label: `Starts in ${hours}h ${mins % 60}m` };
+}
+
 function nextSlotToday() {
   const now = new Date();
   for (const slot of WEDDING_TIME_SLOTS) {

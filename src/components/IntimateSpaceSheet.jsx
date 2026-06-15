@@ -3,7 +3,9 @@ import { formatCompactNumber } from "../formatCompact.js";
 import { bestieBowIconSrc, bestieBowLevelFromExp } from "../bestieBowTiers.js";
 import { cpHeartIconSrc, cpHeartLevelFromExp } from "../cpHeartTiers.js";
 import {
+  bondAchievements,
   bondMeta,
+  bondTimelineEvents,
   daysTogether,
   isBestieBondType,
   isCpBondType,
@@ -12,6 +14,7 @@ import {
   GUARD_PROPOSE_CP,
 } from "../relationships.js";
 import { loadProfilesForUserIds } from "../profile.js";
+import { loadGiftsBetweenUsers } from "../giftTransactions.js";
 import AvatarImg from "./AvatarImg.jsx";
 import { BondIcon, bondIconType } from "./BondIcon.jsx";
 
@@ -32,6 +35,8 @@ export default function IntimateSpaceSheet({
   const [rulesOpen, setRulesOpen] = useState(false);
   const [declaration, setDeclaration] = useState("");
   const [busy, setBusy] = useState(false);
+  const [memories, setMemories] = useState([]);
+  const [spaceTab, setSpaceTab] = useState("story");
 
   useEffect(() => {
     if (!bond || !userId) return;
@@ -42,6 +47,7 @@ export default function IntimateSpaceSheet({
     });
     const saved = localStorage.getItem(`intimate-decl-${bond.id ?? `${bond.userA}-${bond.userB}`}`);
     if (saved) setDeclaration(saved);
+    loadGiftsBetweenUsers(userId, pid, 12).then(setMemories).catch(() => setMemories([]));
   }, [bond, userId]);
 
   if (!bond) return null;
@@ -57,6 +63,15 @@ export default function IntimateSpaceSheet({
   const partnerInitial = partnerName.charAt(0).toUpperCase();
   const myInitial = (myProfile?.display_name || "Y").charAt(0).toUpperCase();
   const declKey = `intimate-decl-${bond.id ?? `${bond.userA}-${bond.userB}`}`;
+  const timeline = bondTimelineEvents(bond);
+  const achievements = bondAchievements(bond);
+  const unlockedCount = achievements.filter((a) => a.unlocked).length;
+
+  function formatMemoryTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
 
   async function handleCancel() {
     if (!window.confirm(`Cancel your ${meta.label} bond with ${partnerName}?`)) return;
@@ -172,6 +187,42 @@ export default function IntimateSpaceSheet({
           </p>
         </div>
 
+        <div className="intimate-space-tabs" role="tablist">
+          {[
+            { key: "story", label: "Story" },
+            { key: "memories", label: "Memories" },
+            { key: "achievements", label: `Achievements (${unlockedCount})` },
+          ].map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={spaceTab === t.key}
+              className={`intimate-space-tab ${spaceTab === t.key ? "intimate-space-tab--active" : ""}`}
+              onClick={() => setSpaceTab(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {spaceTab === "story" && (
+          <>
+        <section className="intimate-space-section">
+          <h3>Relationship Timeline</h3>
+          <ol className="intimate-space-timeline">
+            {timeline.map((ev) => (
+              <li key={ev.id} className="intimate-space-timeline-item">
+                <span className="intimate-space-timeline-icon" aria-hidden>{ev.icon}</span>
+                <div>
+                  <strong>{ev.title}</strong>
+                  <small>{ev.detail}{ev.at ? ` · ${formatMemoryTime(ev.at)}` : ""}</small>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
         <section className="intimate-space-section">
           <h3>Exclusive Relationship</h3>
           <div className="intimate-space-slots">
@@ -201,6 +252,54 @@ export default function IntimateSpaceSheet({
             })}
           </div>
         </section>
+          </>
+        )}
+
+        {spaceTab === "memories" && (
+          <section className="intimate-space-section">
+            <h3>Shared Memories</h3>
+            {memories.length === 0 ? (
+              <p className="intimate-space-empty">Send gifts to build your memory wall</p>
+            ) : (
+              <ul className="intimate-space-memories">
+                {memories.map((row) => (
+                  <li key={row.id} className="intimate-space-memory">
+                    <span className="intimate-space-memory-gift" aria-hidden>🎁</span>
+                    <div>
+                      <strong>{row.gift_name || "Gift"}</strong>
+                      <small>
+                        {row.sender_id === userId ? "You" : row.sender?.display_name || "Friend"}
+                        {" → "}
+                        {row.recipient_id === userId ? "You" : row.recipient?.display_name || partnerName}
+                        {row.created_at ? ` · ${formatMemoryTime(row.created_at)}` : ""}
+                      </small>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {spaceTab === "achievements" && (
+          <section className="intimate-space-section">
+            <h3>Achievements</h3>
+            <div className="intimate-space-achievements">
+              {achievements.map((a) => (
+                <div
+                  key={a.id}
+                  className={`intimate-space-achievement ${a.unlocked ? "intimate-space-achievement--open" : "intimate-space-achievement--locked"}`}
+                >
+                  <span className="intimate-space-achievement-icon" aria-hidden>{a.unlocked ? a.icon : "🔒"}</span>
+                  <div>
+                    <strong>{a.label}</strong>
+                    <small>{a.desc}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {(bond.bondType === "cp" || bond.bondType === "wedding") && onOpenLoveHome && (
           <button type="button" className="primary-btn intimate-space-love-btn" onClick={onOpenLoveHome}>

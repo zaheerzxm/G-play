@@ -1,4 +1,5 @@
-import { clampGiftReward, maxGiftRewardForName } from "./gifts.js";
+import { clampGiftReward, findGiftByName, maxGiftRewardForName, splitGiftMessage } from "./gifts.js";
+import { isPremiumGiftCost } from "./giftPremiumTypes.js";
 
 const GIFT_MSG_NEW = /^(.+?) sent (\S+) (.+?) to (.+?) — won (\d+) gold$/;
 const GIFT_MSG_OLD = /^sent (\S+) (.+?) to (.+?) — won (\d+) gold$/;
@@ -32,6 +33,25 @@ export function parseGiftMessage(message) {
     recipientName: match[3].trim(),
     reward: clampGiftReward(giftName, rawReward),
   };
+}
+
+/** Shorter chat line for normal gifts — fly animation already shows the gold win. */
+export function giftChatDisplayLine(message) {
+  const { main, charm } = splitGiftMessage(message);
+  if (!main.includes("— won ")) return { main, charm };
+
+  const parsed = parseGiftMessage(main);
+  if (!parsed) return { main, charm };
+
+  const baseName = parsed.giftName.replace(/\s+x\d+$/i, "").trim();
+  const gift = findGiftByName(baseName);
+  if (!gift || isPremiumGiftCost(gift.cost)) return { main, charm };
+
+  const qtyMatch = parsed.giftName.match(/\s+x(\d+)$/i);
+  const qtySuffix = qtyMatch ? ` x${qtyMatch[1]}` : "";
+  const sender = parsed.senderName ?? "Guest";
+  const compact = `${sender} sent ${parsed.emoji} ${baseName}${qtySuffix} to ${parsed.recipientName}`;
+  return { main: compact, charm };
 }
 
 export function buildGiftBanner(msg, profileMap = {}) {

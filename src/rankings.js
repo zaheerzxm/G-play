@@ -39,8 +39,42 @@ export async function loadWealthRanking(limit = 50) {
   }));
 }
 
-export async function loadContributionRanking(limit = 50) {
+export async function loadContributionRanking(limit = 50, period = "total") {
   if (!supabase) return [];
+
+  if (period === "daily" || period === "weekly") {
+    const since = new Date();
+    if (period === "daily") {
+      since.setHours(0, 0, 0, 0);
+    } else {
+      since.setDate(since.getDate() - 7);
+    }
+
+    const { data: logRows, error: logError } = await supabase
+      .from("room_contribution_log")
+      .select("user_id, amount")
+      .gte("created_at", since.toISOString());
+
+    if (logError || !logRows?.length) return [];
+
+    const totals = {};
+    for (const row of logRows) {
+      totals[row.user_id] = (totals[row.user_id] ?? 0) + Number(row.amount ?? 0);
+    }
+
+    const sorted = Object.entries(totals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit);
+
+    const profiles = await loadProfilesForUserIds(sorted.map(([id]) => id));
+
+    return sorted.map(([userId, amount], index) => ({
+      ...profiles[userId],
+      id: userId,
+      score: amount,
+      rank: index + 1,
+    }));
+  }
 
   const { data, error } = await supabase
     .from("room_contributions")
@@ -67,8 +101,8 @@ export async function loadContributionRanking(limit = 50) {
   }));
 }
 
-export async function loadRanking(tab = "charm", limit = 50) {
+export async function loadRanking(tab = "charm", limit = 50, { period = "total" } = {}) {
   if (tab === "wealth") return loadWealthRanking(limit);
-  if (tab === "contribution") return loadContributionRanking(limit);
+  if (tab === "contribution") return loadContributionRanking(limit, period);
   return loadCharmRanking(limit);
 }

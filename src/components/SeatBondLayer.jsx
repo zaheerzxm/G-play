@@ -5,20 +5,28 @@ import { seatBondMidpoint } from "../giftFx.js";
 import { bondMeta, isBestieBondType, isCpBondType } from "../relationships.js";
 import { BondIcon, bondIconType } from "./BondIcon.jsx";
 
-export default function SeatBondLayer({ bonds, onBondTap }) {
+export default function SeatBondLayer({ bonds, pairSignals = [], onBondTap }) {
   const [positions, setPositions] = useState([]);
 
   useEffect(() => {
     function measure() {
-      setPositions(
-        (bonds ?? [])
-          .map((bond) => {
-            const mid = seatBondMidpoint(bond.seatA, bond.seatB);
-            if (!mid) return null;
-            return { id: bond.id, mid, bond };
-          })
-          .filter(Boolean),
-      );
+      const bondPositions = (bonds ?? [])
+        .map((bond) => {
+          const mid = seatBondMidpoint(bond.seatA, bond.seatB);
+          if (!mid) return null;
+          return { id: bond.id, mid, bond, kind: "bond" };
+        })
+        .filter(Boolean);
+
+      const pairPositions = (pairSignals ?? [])
+        .map((pair) => {
+          const mid = seatBondMidpoint(pair.seatA, pair.seatB);
+          if (!mid) return null;
+          return { id: pair.id, mid, pair, kind: "partner" };
+        })
+        .filter(Boolean);
+
+      setPositions([...bondPositions, ...pairPositions]);
     }
 
     measure();
@@ -38,11 +46,22 @@ export default function SeatBondLayer({ bonds, onBondTap }) {
       window.removeEventListener("resize", measure);
       observer?.disconnect();
     };
-  }, [bonds]);
+  }, [bonds, pairSignals]);
 
   return (
     <div className="seat-bond-layer" aria-hidden={positions.length === 0}>
-      {positions.map(({ id, mid, bond }) => {
+      {positions.map(({ id, mid, bond, pair, kind }) => {
+        if (kind === "partner") {
+          return (
+            <span
+              key={id}
+              className="seat-partner-pair-signal"
+              style={{ left: `${mid.x}px`, top: `${mid.y}px` }}
+              aria-hidden
+            />
+          );
+        }
+
         const meta = bondMeta(bond.bondType);
         const isCp = isCpBondType(bond.bondType);
         const isBestie = isBestieBondType(bond.bondType);

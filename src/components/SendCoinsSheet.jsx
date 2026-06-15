@@ -5,9 +5,14 @@ import { loadMutualFriends } from "../social.js";
 import CoinIcon from "./CoinIcon.jsx";
 
 const AMOUNTS = [50, 100, 200, 500];
+const SEND_TABS = ["Package", "Gift", "Special", "VIP"];
 
 function friendInitial(friend) {
-  return (friend.display_name || "?").charAt(0).toUpperCase();
+  return (friend?.display_name || "?").charAt(0).toUpperCase();
+}
+
+function recipientIdOf(friend) {
+  return friend?.id ?? friend?.user_id ?? null;
 }
 
 export default function SendCoinsSheet({
@@ -17,15 +22,21 @@ export default function SendCoinsSheet({
   onCoinsChange,
   onClose,
   onOpenFriends,
+  onSent,
   recipient = null,
+  embedded = false,
 }) {
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(!recipient);
   const [selected, setSelected] = useState(recipient);
   const [amount, setAmount] = useState(100);
   const [customAmount, setCustomAmount] = useState("");
+  const [activeTab, setActiveTab] = useState("Gift");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+
+  const payee = selected ?? recipient;
+  const balance = Number(coins ?? 0);
 
   useEffect(() => {
     if (recipient) {
@@ -41,27 +52,38 @@ export default function SendCoinsSheet({
       .finally(() => setLoading(false));
   }, [userId, recipient]);
 
-  const sendAmount = customAmount.trim() ? Number(customAmount) : amount;
+  const sendAmount = customAmount.trim() ? Math.floor(Number(customAmount)) : amount;
   const canSend =
-    selected &&
+    recipientIdOf(payee) &&
+    Number.isFinite(sendAmount) &&
     sendAmount >= 1 &&
-    (isSuperAdmin || coins >= sendAmount) &&
+    (isSuperAdmin || balance >= sendAmount) &&
     !busy;
 
+  function handleClose(result) {
+    onClose?.(result);
+  }
+
   async function handleSend() {
-    if (!selected || !canSend) return;
+    if (!canSend) return;
+    const targetId = recipientIdOf(payee);
+    if (!targetId) {
+      setError("Could not find recipient");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const { newSenderBalance, recipientName } = await sendCoinsToUser({
         fromUserId: userId,
-        recipientUserId: selected.id,
+        recipientUserId: targetId,
         amount: sendAmount,
         isSuperAdmin,
-        currentCoins: coins,
+        currentCoins: balance,
       });
       onCoinsChange?.(newSenderBalance);
-      onClose?.({ message: `Sent ${sendAmount} coins to ${recipientName}` });
+      onSent?.({ amount: sendAmount, recipientName, recipientId: targetId });
+      handleClose({ message: `Sent ${sendAmount} coins to ${recipientName}` });
     } catch (e) {
       setError(e.message ?? "Transfer failed");
     } finally {
@@ -69,111 +91,172 @@ export default function SendCoinsSheet({
     }
   }
 
-  return (
-    <div className="profile-card-backdrop room-profile-backdrop" onClick={onClose}>
-      <div className="send-coins-sheet" onClick={(e) => e.stopPropagation()}>
-        <header className="send-coins-header">
-          {selected && !recipient ? (
-            <button type="button" className="send-coins-back" onClick={() => setSelected(null)}>
-              ←
+  const page = (
+      <div
+        className={`gplay-mobile-shell send-coins-page${embedded ? " send-coins-page--embedded" : ""}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="send-coins-header send-coins-header--page">
+          {payee && !recipient ? (
+            <button type="button" className="send-coins-back" onClick={() => setSelected(null)} aria-label="Back">
+              ‹
             </button>
           ) : (
             <span className="send-coins-back send-coins-back--spacer" aria-hidden />
           )}
-          <h3 className="send-coins-title coin-inline"><CoinIcon size="sm" /> Send Coins</h3>
-          <button type="button" className="send-coins-close" onClick={onClose} aria-label="Close">
+          <h3 className="send-coins-title coin-inline">
+            <CoinIcon size="sm" /> Send Coins
+          </h3>
+          <button type="button" className="send-coins-close" onClick={() => handleClose()} aria-label="Close">
             ✕
           </button>
         </header>
 
-        <p className="send-coins-balance coin-inline">Balance: <CoinIcon size="sm" /> {formatCoins(coins, isSuperAdmin)}</p>
+        <div className="send-coins-page-body">
+          <div className="send-coins-tabs" role="tablist" aria-label="Gift categories">
+            {SEND_TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
+                className={`send-coins-tab ${activeTab === tab ? "send-coins-tab--active" : ""}`}
+                onClick={() => setActiveTab(tab)}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
 
-        {!selected && !recipient ? (
-          <>
-            <p className="send-coins-hint">Choose a friend to send coins to</p>
-            {loading ? (
-              <p className="send-coins-empty">Loading friends…</p>
-            ) : friends.length === 0 ? (
-              <div className="send-coins-empty">
-                <p>No friends yet — add friends in a room, then send coins here.</p>
-                {onOpenFriends && (
-                  <button type="button" className="send-coins-link-btn" onClick={onOpenFriends}>
-                    Open Friends
-                  </button>
-                )}
-              </div>
-            ) : (
-              <ul className="send-coins-friends">
-                {friends.map((friend) => (
-                  <li key={friend.id}>
-                    <button type="button" className="send-coins-friend" onClick={() => setSelected(friend)}>
-                      {friend.avatar_url ? (
-                        <img src={friend.avatar_url} alt="" className="send-coins-friend-avatar" />
-                      ) : (
-                        <span className="send-coins-friend-avatar send-coins-friend-avatar--fallback">
-                          {friendInitial(friend)}
-                        </span>
-                      )}
-                      <span className="send-coins-friend-meta">
-                        <strong>{friend.display_name}</strong>
-                        {friend.user_code && <small>ID: {friend.user_code}</small>}
-                      </span>
-                      <span className="send-coins-friend-arrow">›</span>
+          <p className="send-coins-balance coin-inline">
+            Balance <CoinIcon size="sm" /> <strong>{formatCoins(balance, isSuperAdmin)}</strong>
+          </p>
+
+          {!payee && !recipient ? (
+            <>
+              <p className="send-coins-hint">Choose a friend to send coins to</p>
+              {loading ? (
+                <p className="send-coins-empty">Loading friends…</p>
+              ) : friends.length === 0 ? (
+                <div className="send-coins-empty">
+                  <p>No friends yet — add friends in a room, then send coins here.</p>
+                  {onOpenFriends && (
+                    <button type="button" className="send-coins-link-btn" onClick={onOpenFriends}>
+                      Open Friends
                     </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="send-coins-recipient">
-              {selected?.avatar_url ? (
-                <img src={selected.avatar_url} alt="" className="send-coins-friend-avatar" />
+                  )}
+                </div>
               ) : (
-                <span className="send-coins-friend-avatar send-coins-friend-avatar--fallback">
-                  {friendInitial(selected)}
-                </span>
+                <ul className="send-coins-friends">
+                  {friends.map((friend) => (
+                    <li key={friend.id}>
+                      <button type="button" className="send-coins-friend" onClick={() => setSelected(friend)}>
+                        {friend.avatar_url ? (
+                          <img src={friend.avatar_url} alt="" className="send-coins-friend-avatar" />
+                        ) : (
+                          <span className="send-coins-friend-avatar send-coins-friend-avatar--fallback">
+                            {friendInitial(friend)}
+                          </span>
+                        )}
+                        <span className="send-coins-friend-meta">
+                          <strong>{friend.display_name}</strong>
+                          {friend.user_code && <small>ID: {friend.user_code}</small>}
+                        </span>
+                        <span className="send-coins-friend-arrow">›</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
-              <div>
-                <strong>{selected.display_name}</strong>
-                {selected.user_code && <p>ID: {selected.user_code}</p>}
+            </>
+          ) : (
+            <>
+              <div className="send-coins-recipient send-coins-recipient--card">
+                {payee?.avatar_url ? (
+                  <img src={payee.avatar_url} alt="" className="send-coins-friend-avatar" />
+                ) : (
+                  <span className="send-coins-friend-avatar send-coins-friend-avatar--fallback">
+                    {friendInitial(payee)}
+                  </span>
+                )}
+                <div className="send-coins-recipient-meta">
+                  <strong>{payee?.display_name || "Friend"}</strong>
+                  {payee?.user_code && <small>ID: {payee.user_code}</small>}
+                </div>
               </div>
+
+              <p className="send-coins-section-label">Pick an amount</p>
+              <div className="send-coins-amounts">
+                {AMOUNTS.map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    className={`send-coins-amt ${amount === a && !customAmount ? "send-coins-amt--active" : ""}`}
+                    onClick={() => {
+                      setAmount(a);
+                      setCustomAmount("");
+                    }}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+
+              <label className="send-coins-section-label" htmlFor="send-coins-custom">
+                Custom amount
+              </label>
+              <div className="personal-chat-input-wrap send-coins-input-wrap">
+                <input
+                  id="send-coins-custom"
+                  type="number"
+                  min="1"
+                  inputMode="numeric"
+                  placeholder="Or enter amount"
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        {payee && (
+          <footer className="send-coins-footer">
+            {error && <p className="send-coins-error">{error}</p>}
+            <div className="send-coins-footer-meta">
+              <span>Qty. 1</span>
+              <span className="coin-inline">
+                <CoinIcon size="sm" /> {formatCoins(balance, isSuperAdmin)}
+              </span>
             </div>
-
-            <p className="send-coins-hint">Pick an amount</p>
-            <div className="send-coins-amounts">
-              {AMOUNTS.map((a) => (
-                <button
-                  key={a}
-                  type="button"
-                  className={`send-coins-amt ${amount === a && !customAmount ? "send-coins-amt--active" : ""}`}
-                  onClick={() => {
-                    setAmount(a);
-                    setCustomAmount("");
-                  }}
-                >
-                  {a}
-                </button>
-              ))}
-            </div>
-            <label className="field-label">Custom amount</label>
-            <input
-              type="number"
-              min="1"
-              placeholder="Or enter amount"
-              value={customAmount}
-              onChange={(e) => setCustomAmount(e.target.value)}
-            />
-
-            {error && <p className="banner error send-coins-error">{error}</p>}
-
-            <button type="button" className="primary-btn send-coins-submit" disabled={!canSend} onClick={handleSend}>
-              {busy ? "Sending…" : `Send ${sendAmount || 0} coins`}
+            <button
+              type="button"
+              className="send-coins-submit-btn"
+              disabled={!canSend}
+              onClick={handleSend}
+            >
+              {busy ? "Sending…" : `Send ${Number.isFinite(sendAmount) ? sendAmount : 0} coins`}
             </button>
-          </>
+          </footer>
         )}
       </div>
+  );
+
+  if (embedded) {
+    return (
+      <div
+        className="personal-chat-send-coins-overlay"
+        role="presentation"
+        onClick={() => handleClose()}
+      >
+        {page}
+      </div>
+    );
+  }
+
+  return (
+    <div className="gplay-mobile-shell-backdrop gplay-mobile-shell-backdrop--send-coins">
+      {page}
     </div>
   );
 }

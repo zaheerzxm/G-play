@@ -66,9 +66,9 @@ export default function WalkieTalkieOverlay({ self, peer, session, onEnd }) {
           <p className="walkie-overlay-hint">Listening to {peer.name} on this private line</p>
         )}
 
-        {isSender && onEnd && (
+        {onEnd && (
           <button type="button" className="walkie-overlay-end" onClick={onEnd}>
-            End walkie talkie
+            {isSender ? "End walkie talkie" : "Dismiss"}
           </button>
         )}
       </div>

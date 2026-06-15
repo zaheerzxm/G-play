@@ -36,6 +36,18 @@ export function charmTierFromTotal(charm) {
   return current;
 }
 
+/** Progress toward the next charm tier (for gift wall bar). */
+export function charmTierProgress(charm) {
+  const value = Number(charm) || 0;
+  const current = charmTierFromTotal(value);
+  const idx = current ? CHARM_TIERS.findIndex((t) => t.level === current.level) : -1;
+  const next = CHARM_TIERS[idx + 1] ?? null;
+  const floor = current?.min ?? 0;
+  const ceiling = next?.min ?? floor + 1;
+  const pct = ceiling > floor ? Math.min(100, ((value - floor) / (ceiling - floor)) * 100) : 100;
+  return { current, next, floor, ceiling, pct, value };
+}
+
 /** Public asset path for a charm tier icon (star / diamond / crown sprites). */
 export function charmTierIconSrc(tier) {
   if (!tier?.level) return null;

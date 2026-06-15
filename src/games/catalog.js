@@ -33,6 +33,14 @@ export const MINI_GAMES = [
     live: true,
   },
   {
+    id: "ddd",
+    name: "DDD",
+    emoji: "💖",
+    description: "Dil, Dimaag, Dustbin — assign heart, brain & trash each turn.",
+    players: "3-12",
+    live: true,
+  },
+  {
     id: "uno",
     name: "UNO",
     emoji: "🃏",
@@ -56,4 +64,8 @@ export function liveMiniGames() {
 
 export function comingMiniGames() {
   return MINI_GAMES.filter((g) => !g.live);
+}
+
+export function getGameById(id) {
+  return MINI_GAMES.find((g) => g.id === id) ?? null;
 }

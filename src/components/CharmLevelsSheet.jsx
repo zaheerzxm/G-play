@@ -1,5 +1,6 @@
 import { CHARM_TIERS, GOLD_PER_CHARM, formatCharmThreshold } from "../charmTiers.js";
 import CharmBadge from "./CharmBadge.jsx";
+import { IconGift, UiIcon } from "./NavIcons.jsx";
 
 export default function CharmLevelsSheet({ onClose }) {
   return (
@@ -12,7 +13,7 @@ export default function CharmLevelsSheet({ onClose }) {
         <section className="charm-levels-how">
           <h3>How to Increase Charm</h3>
           <p>Receive Gifts</p>
-          <p className="charm-levels-rate">{GOLD_PER_CHARM} Gold&apos;s worth of gift = 1 Charm 🎁</p>
+          <p className="charm-levels-rate">{GOLD_PER_CHARM} Gold&apos;s worth of gift = 1 Charm <UiIcon Icon={IconGift} /></p>
         </section>
         <table className="charm-levels-table">
           <thead>

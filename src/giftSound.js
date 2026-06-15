@@ -28,6 +28,20 @@ function tone(ctx, { freq, start, dur, type = "sine", vol = 0.06, slide = 1 }) {
   osc.stop(start + dur + 0.02);
 }
 
+export function playRoomSoundEffect(enabled = true) {
+  if (!enabled) return;
+  const ctx = getCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    tone(ctx, { freq: 180, start: now, dur: 0.08, vol: 0.05, type: "square" });
+    tone(ctx, { freq: 240, start: now + 0.05, dur: 0.1, vol: 0.045, type: "triangle" });
+    tone(ctx, { freq: 320, start: now + 0.1, dur: 0.12, vol: 0.04 });
+  } catch {
+    /* ok */
+  }
+}
+
 export function playGiftSound(enabled = true) {
   if (!enabled) return;
   const ctx = getCtx();

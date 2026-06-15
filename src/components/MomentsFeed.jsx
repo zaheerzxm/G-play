@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   SPOTLIGHT_FEED_NAME,
   addMomentComment,
   deleteMoment,
   loadMomentComments,
   loadMomentsFeed,
+  loadUserMoments,
   loadUserLikedMomentIds,
   toggleMomentLike,
 } from "../moments.js";
@@ -226,11 +228,15 @@ function MomentPost({
 
 export default function MomentsFeed({
   userId,
+  profileUserId = null,
+  profileName = null,
   onClose,
   onEditMoment,
+  onCreatePost,
   embedded = false,
   feedOnly = false,
   fullPage = false,
+  elevated = false,
 }) {
   const [moments, setMoments] = useState([]);
   const [liked, setLiked] = useState(new Set());
@@ -239,7 +245,9 @@ export default function MomentsFeed({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await loadMomentsFeed(40);
+      const rows = profileUserId
+        ? await loadUserMoments(profileUserId, 40)
+        : await loadMomentsFeed(40);
       setMoments(rows);
       if (userId && rows.length) {
         const ids = await loadUserLikedMomentIds(userId, rows.map((m) => m.id));
@@ -248,7 +256,7 @@ export default function MomentsFeed({
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, profileUserId]);
 
   useEffect(() => {
     load();
@@ -274,9 +282,26 @@ export default function MomentsFeed({
   const body = (
     <div className={`moments-feed ${embedded ? "moments-feed--embedded" : ""} ${fullPage ? "moments-feed--page" : ""}`}>
       {!embedded && !feedOnly && (
-        <header className="moments-feed-header">
-          <button type="button" className="moments-feed-back" onClick={onClose}>‹</button>
-          <h2>{SPOTLIGHT_FEED_NAME}</h2>
+        <header className="moments-feed-header moments-feed-header--page">
+          <button type="button" className="moments-feed-back" onClick={onClose} aria-label="Back">‹</button>
+          <h2>
+            {profileUserId ? (
+              <>
+                {profileName ? `${profileName}'s ` : ""}
+                {SPOTLIGHT_FEED_NAME}
+                {moments.length > 0 ? ` · ${moments.length}` : ""}
+              </>
+            ) : (
+              SPOTLIGHT_FEED_NAME
+            )}
+          </h2>
+          {userId && !profileUserId && onCreatePost ? (
+            <button type="button" className="moments-feed-create" onClick={onCreatePost} aria-label="New post">
+              +
+            </button>
+          ) : (
+            <span className="moments-feed-header-spacer" aria-hidden />
+          )}
         </header>
       )}
 
@@ -285,7 +310,11 @@ export default function MomentsFeed({
           <p className="moments-empty">Loading feed…</p>
         )}
         {!loading && moments.length === 0 && (
-          <p className="moments-empty">No posts yet. Tap + to share on {SPOTLIGHT_FEED_NAME}.</p>
+          <p className="moments-empty">
+            {profileUserId
+              ? `${profileName ? `${profileName} has` : "No"} ${SPOTLIGHT_FEED_NAME} posts yet.`
+              : `No posts yet. Tap + to share on ${SPOTLIGHT_FEED_NAME}.`}
+          </p>
         )}
         {moments.map((moment) => (
           <MomentPost
@@ -311,9 +340,23 @@ export default function MomentsFeed({
 
   if (embedded || feedOnly) return body;
 
-  return (
-    <div className="moments-feed-backdrop">
-      {body}
+  const backdrop = (
+    <div
+      className={`moments-feed-backdrop ${fullPage ? `gplay-mobile-shell-backdrop moments-feed-backdrop--page${elevated ? " gplay-mobile-shell-backdrop--profile-child" : ""}` : ""}`}
+      onClick={fullPage ? onClose : undefined}
+    >
+      <div
+        className={fullPage ? "gplay-mobile-shell" : undefined}
+        onClick={fullPage ? (e) => e.stopPropagation() : undefined}
+      >
+        {body}
+      </div>
     </div>
   );
+
+  if (fullPage) {
+    return createPortal(backdrop, document.body);
+  }
+
+  return backdrop;
 }

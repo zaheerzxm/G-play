@@ -1,13 +1,13 @@
 export default function StageBackdrop({ backgroundKey = "golden_party", backgroundUrl = null }) {
-  const style = backgroundUrl
-    ? { "--stage-custom-bg": `url("${backgroundUrl}")` }
-    : undefined;
-
   if (backgroundUrl) {
     return (
       <div
         className="stage-backdrop stage-backdrop--custom"
-        style={style}
+        style={{
+          backgroundImage: `linear-gradient(180deg, rgba(29, 6, 42, 0.48), rgba(10, 1, 16, 0.76)), url(${JSON.stringify(backgroundUrl)})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
         aria-hidden
       />
     );
@@ -16,7 +16,6 @@ export default function StageBackdrop({ backgroundKey = "golden_party", backgrou
   return (
     <div
       className={`stage-backdrop stage-backdrop--${backgroundKey}`}
-      style={style}
       aria-hidden
     >
       <div className="stage-spotlight" />

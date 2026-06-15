@@ -1,40 +1,57 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { loadMyClan } from "../clans.js";
+import { countryDisplay, formatProfileLocation } from "../countries.js";
 import { loadGiftWall } from "../giftTransactions.js";
+import { loadUserMoments, SPOTLIGHT_FEED_NAME } from "../moments.js";
 import { loadProfilesForUserIds, loadSavedRooms } from "../profile.js";
 import { isFollowingUser, followUser, isMutualFriend } from "../social.js";
 import {
-  GUARD_PROPOSE_CP,
-  PROTECT_COIN_OPTIONS,
   bondMeta,
   loadActiveBondsForUser,
   loadBondBetween,
-  loadCpSlotInfo,
+  loadGuardRankingForUser,
+  loadPrimaryCoupleBond,
   partnerUserId,
-  proposeBond,
-  protectUser,
   relationshipLevelProgress,
   respondBondProposal,
 } from "../relationships.js";
-import { bestieBowLevelFromExp } from "../bestieBowTiers.js";
 import { charmTierFromTotal } from "../charmTiers.js";
 import { formatCompactNumber } from "../formatCompact.js";
 import AvatarImg from "./AvatarImg.jsx";
+import BffPreviewCards from "./BffPreviewCards.jsx";
+import BffSheet from "./BffSheet.jsx";
+import GuardSheet from "./GuardSheet.jsx";
+import GiftWallSheet from "./GiftWallSheet.jsx";
+import LoveHomeSheet from "./LoveHomeSheet.jsx";
+import MomentsFeed from "./MomentsFeed.jsx";
+import { IconChats, IconClan, IconCopy, IconGift, UiIcon } from "./NavIcons.jsx";
 import ProfileBadgeRow from "./ProfileBadgeRow.jsx";
-
-const PROPOSE_BOND_TYPES = [
-  "cp",
-  "bro",
-  "sis",
-  "bff",
-  "apprentice",
-  "son",
-  "daughter",
-  "choti_ghar_wali",
-  "badi_ghar_wali",
-];
+import VipDisplayName from "./VipDisplayName.jsx";
+import { recordVisit } from "../visitors.js";
 
 const CP_TYPES = new Set(["cp", "wedding", "choti_ghar_wali", "badi_ghar_wali"]);
+const BFF_TYPES = new Set(["bff", "bestie", "bro", "sis"]);
+
+function ProfileSectionRow({ label, meta, onClick, disabled = false, children }) {
+  return (
+    <section className="weplay-profile-section">
+      <button
+        type="button"
+        className="weplay-profile-section-head"
+        onClick={onClick}
+        disabled={disabled || !onClick}
+      >
+        <span>{label}</span>
+        <span className="weplay-profile-section-meta">
+          {meta}
+          {onClick && <span className="weplay-profile-section-chevron">›</span>}
+        </span>
+      </button>
+      {children}
+    </section>
+  );
+}
 
 export default function UserFullProfileSheet({
   seat,
@@ -57,32 +74,56 @@ export default function UserFullProfileSheet({
   onOpenLoveHome,
   onOpenGiftWall,
   onOpenSettings,
+  onOpenClan,
+  onOpenFriends,
+  onOpenPlayShow,
+  onOpenStats,
 }) {
   const [following, setFollowing] = useState(false);
   const [mutual, setMutual] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pair, setPair] = useState(null);
   const [bondBusy, setBondBusy] = useState(false);
-  const [viewerCpSlots, setViewerCpSlots] = useState(null);
-  const [targetCpSlots, setTargetCpSlots] = useState(null);
   const [giftStats, setGiftStats] = useState({ totalGifts: 0, totalStars: 0 });
   const [bffBonds, setBffBonds] = useState([]);
+  const [guardRanking, setGuardRanking] = useState([]);
   const [savedRooms, setSavedRooms] = useState([]);
+  const [clan, setClan] = useState(null);
+  const [momentCount, setMomentCount] = useState(0);
+  const [momentPreviews, setMomentPreviews] = useState([]);
+  const [giftWallOpen, setGiftWallOpen] = useState(false);
+  const [bffOpen, setBffOpen] = useState(false);
   const [guardOpen, setGuardOpen] = useState(false);
+  const [momentsOpen, setMomentsOpen] = useState(false);
+  const [coupleBond, setCoupleBond] = useState(null);
+  const [loveHomeOpen, setLoveHomeOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const targetId = seat?.user_id;
+  const targetId = seat?.user_id ?? profile?.id;
   const isSelf = viewerId === targetId;
   const merged = { ...profile, ...seat, charm: profile?.charm ?? 0 };
   const avatarSrc = seat?.avatar_url || profile?.avatar_url || null;
   const displayName = seat?.nickname || profile?.display_name || "Guest";
   const initial = displayName.charAt(0).toUpperCase();
+  const country = countryDisplay(profile?.country ?? profile?.country_code ?? seat?.country);
+  const locationLabel = formatProfileLocation(profile ?? { country: seat?.country });
+  const charmLine = charmTierFromTotal(merged.charm ?? 0);
 
   useEffect(() => {
     if (!viewerId || !targetId) return;
     isFollowingUser(viewerId, targetId).then(setFollowing);
     isMutualFriend(viewerId, targetId).then(setMutual);
   }, [viewerId, targetId]);
+
+  useEffect(() => {
+    if (!viewerId || !targetId || isSelf) return;
+    recordVisit(targetId, {
+      id: viewerId,
+      display_name: viewerName || viewerProfile?.display_name,
+      avatar_url: viewerProfile?.avatar_url,
+      country: viewerProfile?.country,
+    });
+  }, [viewerId, targetId, isSelf, viewerName, viewerProfile?.display_name, viewerProfile?.avatar_url, viewerProfile?.country]);
 
   useEffect(() => {
     if (!viewerId || !targetId || isSelf) {
@@ -93,29 +134,17 @@ export default function UserFullProfileSheet({
   }, [viewerId, targetId, isSelf, guardRefreshToken]);
 
   useEffect(() => {
-    if (!viewerId || !targetId || isSelf) {
-      setViewerCpSlots(null);
-      setTargetCpSlots(null);
-      return;
-    }
-    Promise.all([loadCpSlotInfo(viewerId), loadCpSlotInfo(targetId)]).then(([mine, theirs]) => {
-      setViewerCpSlots(mine);
-      setTargetCpSlots(theirs);
-    });
-  }, [viewerId, targetId, isSelf, guardRefreshToken]);
-
-  useEffect(() => {
     if (!targetId) return;
     loadGiftWall(targetId).then(setGiftStats).catch(() => {});
+    loadMyClan(targetId).then(setClan).catch(() => {});
     loadActiveBondsForUser(targetId)
       .then(async (rows) => {
-        const filtered = rows.filter((b) => !CP_TYPES.has(b.bondType));
+        const filtered = rows.filter((b) => BFF_TYPES.has(b.bondType) && !CP_TYPES.has(b.bondType));
         const ids = filtered.map((b) => partnerUserId(b, targetId)).filter(Boolean);
-        const profiles = ids.length ? await loadProfilesForUserIds(ids) : [];
-        const byId = Object.fromEntries(profiles.map((p) => [p.id, p]));
+        const profiles = ids.length ? await loadProfilesForUserIds(ids) : {};
         return filtered.map((b) => {
           const oid = partnerUserId(b, targetId);
-          const p = byId[oid];
+          const p = profiles[oid];
           return {
             ...b,
             otherUserId: oid,
@@ -126,41 +155,26 @@ export default function UserFullProfileSheet({
       })
       .then(setBffBonds)
       .catch(() => {});
-    if (isSelf) {
-      loadSavedRooms(targetId).then(setSavedRooms).catch(() => {});
-    }
-  }, [targetId, isSelf]);
+    loadSavedRooms(targetId).then(setSavedRooms).catch(() => {});
+    loadUserMoments(targetId, 100)
+      .then((rows) => {
+        setMomentCount(rows.length);
+        setMomentPreviews(rows.slice(0, 4));
+      })
+      .catch(() => {});
+    loadGuardRankingForUser(targetId, 5).then(setGuardRanking).catch(() => setGuardRanking([]));
+    loadPrimaryCoupleBond(targetId).then(setCoupleBond).catch(() => setCoupleBond(null));
+  }, [targetId]);
 
   if (!seat) return null;
 
   const theirName = displayName;
   const guardMine = pair?.guardMine ?? 0;
-  const guardTheirs = pair?.guardTheirs ?? 0;
   const activeBond = pair?.status === "active" && pair?.bondType;
   const pending = pair?.status === "pending";
   const pendingFromThem = pending && pair?.proposedBy && pair.proposedBy !== viewerId;
-  const pendingFromMe = pending && pair?.proposedBy === viewerId;
-  const canProposeCp =
-    mutual &&
-    !activeBond &&
-    !pending &&
-    guardMine >= GUARD_PROPOSE_CP &&
-    (viewerCpSlots?.remaining ?? 0) > 0 &&
-    (targetCpSlots?.remaining ?? 0) > 0 &&
-    viewerCpSlots?.hasGender &&
-    targetCpSlots?.hasGender;
-  const canProposeBondType = (type) => {
-    if (!mutual || activeBond || pending) return false;
-    const meta = bondMeta(type);
-    if (guardMine < meta.minGuard) return false;
-    if (type === "cp" || type === "choti_ghar_wali" || type === "badi_ghar_wali") return canProposeCp;
-    return true;
-  };
-  const proposeBondOptions = PROPOSE_BOND_TYPES.filter(canProposeBondType);
-  const guardProgress = Math.min(100, (guardMine / GUARD_PROPOSE_CP) * 100);
   const relProgress = pair?.relationshipExp != null ? relationshipLevelProgress(pair.relationshipExp) : null;
   const signature = profile?.title?.trim() || profile?.bio?.trim() || "No signature yet";
-  const charmLine = charmTierFromTotal(merged.charm ?? 0);
 
   async function copyId() {
     const code = seat.user_code || profile?.user_code;
@@ -187,37 +201,6 @@ export default function UserFullProfileSheet({
     }
   }
 
-  async function handleProtect(amount) {
-    if (!viewerId || !targetId || bondBusy || (!isSuperAdmin && coins < amount)) return;
-    setBondBusy(true);
-    try {
-      const result = await protectUser(viewerId, targetId, amount);
-      setPair(await loadBondBetween(viewerId, targetId, viewerId));
-      onBondChange?.();
-      if (!isSuperAdmin && onCoinsChange) onCoinsChange(coins - amount);
-      onToast?.(`Protected 🛡️ +${formatCompactNumber(amount)}`);
-    } catch (err) {
-      onToast?.(err?.message ?? "Protect failed");
-    } finally {
-      setBondBusy(false);
-    }
-  }
-
-  async function handlePropose(type) {
-    if (!viewerId || !targetId || bondBusy) return;
-    setBondBusy(true);
-    try {
-      const updated = await proposeBond(viewerId, targetId, type);
-      setPair(updated);
-      onBondChange?.();
-      onToast?.(`${bondMeta(type).label} proposal sent`);
-    } catch (err) {
-      onToast?.(err?.message ?? "Could not propose");
-    } finally {
-      setBondBusy(false);
-    }
-  }
-
   async function handleRespond(accept) {
     if (!viewerId || !targetId || bondBusy) return;
     setBondBusy(true);
@@ -239,116 +222,119 @@ export default function UserFullProfileSheet({
     onClose();
   }
 
-  const sheet = (
-    <div className="profile-card-backdrop weplay-full-profile-backdrop" onClick={handleBack}>
-      <div className="weplay-full-profile" onClick={(e) => e.stopPropagation()}>
-        <div className="weplay-full-profile-hero">
-          <header className="weplay-full-profile-nav">
-            <button type="button" className="weplay-full-profile-back" onClick={handleBack} aria-label="Back">
-              ‹
-            </button>
-            <div className="weplay-full-profile-nav-right">
-              {!isSelf && canBlockUser && onBlockUser && (
-                <button
-                  type="button"
-                  className="weplay-full-profile-more"
-                  onClick={() => setMenuOpen((v) => !v)}
-                  aria-label="More"
-                >
-                  ···
-                </button>
-              )}
-              {isSelf && onOpenSettings && (
-                <button type="button" className="weplay-full-profile-settings" onClick={onOpenSettings} aria-label="Settings">
-                  ⚙
-                </button>
-              )}
-            </div>
-          </header>
-          {menuOpen && canBlockUser && onBlockUser && (
-            <div className="weplay-full-profile-menu">
-              <button type="button" onClick={onBlockUser}>
-                Block user
-              </button>
-            </div>
-          )}
-          {activeBond && CP_TYPES.has(pair.bondType) && (
-            <button type="button" className="weplay-full-profile-cp-pill" onClick={onOpenLoveHome}>
-              {bondMeta(pair.bondType).emoji} His/Her {bondMeta(pair.bondType).label}
-            </button>
-          )}
-        </div>
-
-        <div className="weplay-full-profile-identity">
-          <div className="weplay-full-profile-head">
-            <span className="weplay-full-profile-avatar-wrap">
-              <AvatarImg
-                src={avatarSrc}
-                fallback={initial}
-                className="weplay-full-profile-avatar weplay-full-profile-avatar--fallback"
-                imgClassName="weplay-full-profile-avatar"
-              />
-            </span>
-            <div className="weplay-full-profile-head-text">
-              <h1 className="weplay-full-profile-name">{displayName}</h1>
-              <ProfileBadgeRow profile={merged} />
-            </div>
-          </div>
-          {activeBond && (
-            <div className="weplay-full-profile-bonds">
-              <span className="weplay-bond-tag weplay-bond-tag--shared">
-                {bondMeta(pair.bondType).emoji} {bondMeta(pair.bondType).label}
-              </span>
-            </div>
-          )}
-          {(seat.user_code || profile?.user_code) && (
-            <button type="button" className="weplay-full-profile-id" onClick={copyId}>
-              ID: {seat.user_code || profile.user_code} <span aria-hidden>📋</span>
-            </button>
-          )}
-        </div>
-
+  const profileSheet = (
+    <div className="gplay-mobile-shell-backdrop gplay-mobile-shell-backdrop--profile" onClick={handleBack}>
+      <div className="gplay-mobile-shell weplay-full-profile weplay-full-profile--ref weplay-full-profile--mobile" onClick={(e) => e.stopPropagation()}>
         <div className="weplay-full-profile-scroll">
-          <section className="weplay-profile-section">
-            <button type="button" className="weplay-profile-section-head" disabled>
-              <span>Spotlight</span>
-              <span className="weplay-profile-section-meta">0</span>
-            </button>
-            <p className="weplay-profile-empty-row">No moments yet</p>
-          </section>
+          <div className="weplay-full-profile-cover-ref">
+            {avatarSrc ? (
+              <img src={avatarSrc} alt="" className="weplay-full-profile-cover-img" />
+            ) : (
+              <div className="weplay-full-profile-cover-fallback">{initial}</div>
+            )}
+            <header className="weplay-full-profile-nav weplay-full-profile-nav--overlay">
+              <button type="button" className="weplay-full-profile-back" onClick={handleBack} aria-label="Back">
+                ‹
+              </button>
+              <div className="weplay-full-profile-nav-right">
+                {!isSelf && canBlockUser && onBlockUser && (
+                  <button
+                    type="button"
+                    className="weplay-full-profile-more"
+                    onClick={() => setMenuOpen((v) => !v)}
+                    aria-label="More"
+                  >
+                    ···
+                  </button>
+                )}
+                {isSelf && onOpenSettings && (
+                  <button type="button" className="weplay-full-profile-settings" onClick={onOpenSettings} aria-label="Settings">
+                    ⚙
+                  </button>
+                )}
+              </div>
+            </header>
+            {menuOpen && canBlockUser && onBlockUser && (
+              <div className="weplay-full-profile-menu">
+                <button type="button" onClick={onBlockUser}>
+                  Block user
+                </button>
+              </div>
+            )}
+          </div>
 
-          <section className="weplay-profile-section">
+          <div className="weplay-full-profile-identity-ref">
+            <VipDisplayName
+              as="h1"
+              name={displayName}
+              profile={merged}
+              variant="light"
+              className="weplay-full-profile-name-ref"
+            />
+            <div className="weplay-identity-ref-row">
+              <ProfileBadgeRow profile={merged} showFamily={!!clan} />
+              {locationLabel && (
+                <span className="weplay-country-ref" title={country?.label ?? locationLabel}>
+                  {locationLabel}
+                </span>
+              )}
+            </div>
+            {(seat.user_code || profile?.user_code) && (
+              <button type="button" className="weplay-full-profile-id-ref" onClick={copyId}>
+                ID: {seat.user_code || profile.user_code} <UiIcon Icon={IconCopy} aria-hidden />
+              </button>
+            )}
+          </div>
+
+          <ProfileSectionRow
+            label={SPOTLIGHT_FEED_NAME}
+            meta={momentCount}
+            onClick={() => setMomentsOpen(true)}
+          >
+            {momentPreviews.length > 0 && (
+              <div className="weplay-moments-preview">
+                {momentPreviews.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className="weplay-moments-preview-thumb"
+                    onClick={() => setMomentsOpen(true)}
+                  >
+                    {m.image_url ? (
+                      <img src={m.image_url} alt="" />
+                    ) : (
+                      <span>{(m.content || "…").slice(0, 1)}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </ProfileSectionRow>
+
+          <ProfileSectionRow
+            label="Gift Wall"
+            meta=""
+            onClick={() => setGiftWallOpen(true)}
+          >
             <button
               type="button"
-              className="weplay-profile-section-head"
+              className="weplay-gift-wall-card-ref"
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenGiftWall?.();
+                setGiftWallOpen(true);
               }}
-              disabled={!onOpenGiftWall}
             >
-              <span>Gift Wall</span>
-              <span className="weplay-profile-section-chevron">›</span>
-            </button>
-            <button
-              type="button"
-              className="weplay-gift-wall-card"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenGiftWall?.();
-              }}
-              disabled={!onOpenGiftWall}
-            >
-              <span className="weplay-gift-wall-stat">
+              <span className="weplay-gift-wall-card-ref-icon" aria-hidden>🎁</span>
+              <span className="weplay-gift-wall-stat-ref">
                 <strong>{formatCompactNumber(giftStats.totalGifts)}</strong>
                 <small>Gift</small>
               </span>
-              <span className="weplay-gift-wall-stat">
+              <span className="weplay-gift-wall-stat-ref">
                 <strong>{formatCompactNumber(giftStats.totalStars)}</strong>
                 <small>Star</small>
               </span>
             </button>
-          </section>
+          </ProfileSectionRow>
 
           <section className="weplay-profile-section">
             <div className="weplay-profile-section-head weplay-profile-section-head--static">
@@ -357,128 +343,41 @@ export default function UserFullProfileSheet({
             <p className="weplay-profile-signature">{signature}</p>
           </section>
 
-          {bffBonds.length > 0 && (
-            <section className="weplay-profile-section">
-              <div className="weplay-profile-section-head weplay-profile-section-head--static">
-                <span>BFF ❤️ {bffBonds.length}</span>
-              </div>
-              <div className="weplay-bff-row">
-                {bffBonds.slice(0, 6).map((b) => {
-                  const meta = bondMeta(b.bondType);
-                  const bowLevel = bestieBowLevelFromExp(b.relationshipExp ?? 0);
-                  return (
-                    <div key={b.otherUserId} className={`weplay-bff-card weplay-bff-card--${meta.popupClass}`}>
-                      <span className="weplay-bff-lv">LV{bowLevel}</span>
-                      <span className="weplay-bff-emoji">{meta.emoji}</span>
-                      <AvatarImg
-                        src={b.otherAvatar}
-                        fallback={b.otherName || "?"}
-                        className="weplay-bff-avatar weplay-bff-avatar--fallback"
-                        imgClassName="weplay-bff-avatar"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+          <ProfileSectionRow
+            label={<>BFF <span className="weplay-bff-heart">❤️</span></>}
+            meta={bffBonds.length}
+            onClick={() => setBffOpen(true)}
+          >
+            <BffPreviewCards bonds={bffBonds} max={3} />
+          </ProfileSectionRow>
 
-          {!isSelf && mutual && (
-            <section className="weplay-profile-section">
-              <button
-                type="button"
-                className="weplay-profile-section-head"
-                onClick={() => setGuardOpen((v) => !v)}
-              >
-                <span>Guard</span>
-                <span className="weplay-profile-section-meta">🛡️ {formatCompactNumber(guardMine)}</span>
-              </button>
-              {guardOpen && (
-                <div className="weplay-guard-detail">
-                  <p className="weplay-guard-hint">
-                    Your guard toward {theirName}: {formatCompactNumber(guardMine)} · Their guard toward you:{" "}
-                    {formatCompactNumber(guardTheirs)}
-                  </p>
-                  {!activeBond && (
-                    <>
-                      <div className="weplay-guard-bar">
-                        <span style={{ width: `${guardProgress}%` }} />
-                      </div>
-                      <div className="weplay-guard-protect">
-                        {PROTECT_COIN_OPTIONS.map((amt) => (
-                          <button
-                            key={amt}
-                            type="button"
-                            className="weplay-guard-protect-btn"
-                            disabled={bondBusy || (!isSuperAdmin && coins < amt)}
-                            onClick={() => handleProtect(amt)}
-                          >
-                            🛡️ {amt}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {activeBond && relProgress && (
-                    <p className="weplay-guard-hint">
-                      {bondMeta(pair.bondType).label} LV{relProgress.level} · {formatCompactNumber(relProgress.value)} XP
-                    </p>
-                  )}
-                  {pendingFromThem && (
-                    <div className="weplay-bond-actions">
-                      <p>
-                        {bondMeta(pair.proposedBondType ?? "cp").emoji} wants to be your{" "}
-                        {bondMeta(pair.proposedBondType ?? "cp").label}
-                      </p>
-                      <button type="button" onClick={() => handleRespond(true)} disabled={bondBusy}>
-                        Accept
-                      </button>
-                      <button type="button" onClick={() => handleRespond(false)} disabled={bondBusy}>
-                        Decline
-                      </button>
-                    </div>
-                  )}
-                  {proposeBondOptions.length > 0 && (
-                    <div className="weplay-bond-pills">
-                      {proposeBondOptions.map((type) => {
-                        const meta = bondMeta(type);
-                        return (
-                          <button
-                            key={type}
-                            type="button"
-                            className="weplay-bond-pill"
-                            disabled={bondBusy}
-                            onClick={() => handlePropose(type)}
-                          >
-                            {meta.emoji} {meta.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {activeBond && onOpenIntimateSpace && (
-                    <div className="weplay-bond-links">
-                      <button type="button" onClick={onOpenIntimateSpace}>
-                        💞 Intimate Space
-                      </button>
-                      {CP_TYPES.has(pair.bondType) && onOpenLoveHome && (
-                        <button type="button" onClick={onOpenLoveHome}>
-                          💒 Love Home
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
-          )}
-
-          {isSelf && savedRooms.length > 0 && (
-            <section className="weplay-profile-section">
-              <div className="weplay-profile-section-head weplay-profile-section-head--static">
-                <span>Advanced Voice Room</span>
-                <span className="weplay-profile-section-chevron">›</span>
+          <ProfileSectionRow
+            label="Guard"
+            meta=""
+            onClick={() => setGuardOpen(true)}
+          >
+            {guardRanking.length > 0 && (
+              <div className="weplay-guard-thumb-row">
+                {guardRanking.slice(0, 5).map((g) => (
+                  <AvatarImg
+                    key={g.userId}
+                    src={g.profile?.avatar_url}
+                    fallback={g.profile?.display_name || "?"}
+                    className="weplay-guard-thumb weplay-guard-thumb--fallback"
+                    imgClassName="weplay-guard-thumb"
+                    title={g.profile?.display_name}
+                  />
+                ))}
               </div>
+            )}
+          </ProfileSectionRow>
+
+          {savedRooms.length > 0 && (
+            <ProfileSectionRow
+              label="Advanced Voice Room"
+              meta={savedRooms.length}
+              onClick={isSelf ? undefined : undefined}
+            >
               <div className="weplay-rooms-row">
                 {savedRooms.slice(0, 4).map((r) => (
                   <div key={r.id} className="weplay-room-thumb" title={r.name}>
@@ -489,40 +388,85 @@ export default function UserFullProfileSheet({
                   <div className="weplay-room-thumb weplay-room-thumb--more">+{savedRooms.length - 4}</div>
                 )}
               </div>
-            </section>
+            </ProfileSectionRow>
           )}
 
-          <section className="weplay-profile-section">
-            <div className="weplay-profile-section-head weplay-profile-section-head--static">
-              <span>Stats</span>
-              <span className="weplay-profile-section-chevron">›</span>
-            </div>
-            <p className="weplay-stats-line">
-              {formatCompactNumber(merged.charm ?? 0)} charm
-              {charmLine ? ` · ${charmLine.label}` : ""}
-            </p>
-          </section>
+          {coupleBond && (
+            <ProfileSectionRow
+              label={isSelf ? "Love Home" : `His/Her ${bondMeta(coupleBond.bondType).label}`}
+              meta=""
+              onClick={() => setLoveHomeOpen(true)}
+            />
+          )}
 
+          {clan && (
+            <ProfileSectionRow
+              label="Clan"
+              meta=""
+              onClick={onOpenClan}
+              disabled={!onOpenClan}
+            >
+              <div className="weplay-family-row-ref">
+                <span className="weplay-family-logo-ref">
+                  <UiIcon Icon={IconClan} />
+                </span>
+                <span className="weplay-family-name-ref">{clan.name}</span>
+              </div>
+            </ProfileSectionRow>
+          )}
+
+          <ProfileSectionRow
+            label="Stats"
+            meta={isSelf ? "Games & wins" : ""}
+            onClick={isSelf ? onOpenStats : undefined}
+            disabled={!isSelf || !onOpenStats}
+          />
+
+          {pendingFromThem && (
+            <div className="weplay-bond-actions">
+              <p>
+                {bondMeta(pair.proposedBondType ?? "cp").emoji} wants to be your{" "}
+                {bondMeta(pair.proposedBondType ?? "cp").label}
+              </p>
+              <button type="button" onClick={() => handleRespond(true)} disabled={bondBusy}>
+                Accept
+              </button>
+              <button type="button" onClick={() => handleRespond(false)} disabled={bondBusy}>
+                Decline
+              </button>
+            </div>
+          )}
+
+          {activeBond && relProgress && (
+            <button
+              type="button"
+              className="weplay-guard-hint weplay-guard-hint--link"
+              onClick={() => onOpenIntimateSpace?.(pair)}
+            >
+              {bondMeta(pair.bondType).label} LV{relProgress.level} · {formatCompactNumber(relProgress.value)} XP
+            </button>
+          )}
         </div>
 
         {!isSelf && (
-          <footer className="weplay-full-profile-footer">
-            <button
-              type="button"
-              className={`weplay-footer-btn weplay-footer-btn--add ${following && !mutual ? "weplay-footer-btn--sent" : ""}`}
-              disabled={busy || mutual || following}
-              onClick={handleAddFriend}
-            >
-              {mutual ? "✓ Friends" : following ? "Request sent" : "+ Add"}
-            </button>
-            {mutual && onMessage && (
-              <button type="button" className="weplay-footer-btn weplay-footer-btn--chat" onClick={onMessage}>
-                Chat
+          <footer className="weplay-full-profile-footer-ref">
+            {onSendGift && (
+              <button type="button" className="weplay-footer-btn-ref weplay-footer-btn-ref--gift" onClick={onSendGift}>
+                <IconGift /> Send Gift
               </button>
             )}
-            {onSendGift && (
-              <button type="button" className="weplay-footer-btn weplay-footer-btn--gift" onClick={onSendGift}>
-                Send Gift
+            {mutual && onMessage ? (
+              <button type="button" className="weplay-footer-btn-ref weplay-footer-btn-ref--chat" onClick={onMessage}>
+                <IconChats /> Chat
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={`weplay-footer-btn-ref weplay-footer-btn-ref--chat ${following && !mutual ? "weplay-footer-btn-ref--muted" : ""}`}
+                disabled={busy || mutual || following}
+                onClick={handleAddFriend}
+              >
+                {mutual ? "✓ Friends" : following ? "Request sent" : "+ Add Friend"}
               </button>
             )}
           </footer>
@@ -531,5 +475,69 @@ export default function UserFullProfileSheet({
     </div>
   );
 
-  return createPortal(sheet, document.body);
+  return createPortal(
+    <>
+      {profileSheet}
+      {momentsOpen && (
+        <MomentsFeed
+          userId={viewerId}
+          profileUserId={targetId}
+          profileName={displayName}
+          fullPage
+          elevated
+          onClose={() => setMomentsOpen(false)}
+        />
+      )}
+      {giftWallOpen && (
+        <GiftWallSheet
+          userId={targetId}
+          profile={merged}
+          fullPage
+          elevated
+          onClose={() => setGiftWallOpen(false)}
+          onSendGift={!isSelf ? onSendGift : undefined}
+        />
+      )}
+      {bffOpen && (
+        <BffSheet
+          targetId={targetId}
+          targetName={theirName}
+          viewerId={viewerId}
+          isSelf={isSelf}
+          elevated
+          onClose={() => setBffOpen(false)}
+          onOpenFriends={onOpenFriends}
+          onOpenIntimateSpace={(bond) => {
+            setBffOpen(false);
+            onOpenIntimateSpace?.(bond);
+          }}
+          onToast={onToast}
+        />
+      )}
+      {guardOpen && (
+        <GuardSheet
+          targetId={targetId}
+          targetName={theirName}
+          targetProfile={merged}
+          viewerId={viewerId}
+          onSendGift={onSendGift}
+          elevated
+          onClose={() => setGuardOpen(false)}
+          onToast={onToast}
+          guardRefreshToken={guardRefreshToken}
+        />
+      )}
+      {loveHomeOpen && coupleBond && (
+        <LoveHomeSheet
+          userId={targetId}
+          bond={coupleBond}
+          ownerProfile={merged}
+          elevated
+          onClose={() => setLoveHomeOpen(false)}
+          onSendGift={!isSelf ? onSendGift : undefined}
+        />
+      )}
+    </>,
+    document.body,
+  );
 }

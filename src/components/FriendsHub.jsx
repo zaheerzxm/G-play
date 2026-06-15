@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   acceptFriendRequest,
   loadMutualFriends,
@@ -6,13 +7,27 @@ import {
   rejectFriendRequest,
 } from "../social.js";
 import AvatarImg from "./AvatarImg.jsx";
+import { IconChats } from "./NavIcons.jsx";
 import PersonalChat from "./PersonalChat.jsx";
+import UserFullProfileSheet from "./UserFullProfileSheet.jsx";
+import VipDisplayName from "./VipDisplayName.jsx";
 
-export default function FriendsHub({ userId, displayName, onJoinRoom, onClose, initialTab = "friends" }) {
+export default function FriendsHub({
+  userId,
+  displayName,
+  coins = 0,
+  isSuperAdmin = false,
+  onCoinsChange,
+  onJoinRoom,
+  onJoinClan,
+  onClose,
+  initialTab = "friends",
+}) {
   const [tab, setTab] = useState(initialTab);
   const [mutual, setMutual] = useState([]);
   const [requests, setRequests] = useState([]);
   const [chatFriend, setChatFriend] = useState(null);
+  const [profileUser, setProfileUser] = useState(null);
   const [busyId, setBusyId] = useState(null);
 
   const refresh = useCallback(async () => {
@@ -47,7 +62,11 @@ export default function FriendsHub({ userId, displayName, onJoinRoom, onClose, i
         userId={userId}
         displayName={displayName}
         friend={chatFriend}
+        coins={coins}
+        isSuperAdmin={isSuperAdmin}
+        onCoinsChange={onCoinsChange}
         onJoinRoom={onJoinRoom}
+        onJoinClan={onJoinClan}
         onClose={() => {
           setChatFriend(null);
           refresh();
@@ -85,101 +104,145 @@ export default function FriendsHub({ userId, displayName, onJoinRoom, onClose, i
 
   function FriendRow({ user, showChat = true }) {
     return (
-      <li className="friends-item">
-        <AvatarImg
-          src={user.avatar_url}
-          fallback={user.display_name || "?"}
-          className="friends-item-avatar friends-item-avatar--fallback"
-          imgClassName="friends-item-avatar"
-        />
-        <span className="friends-item-name">{user.display_name}</span>
+      <li className="friends-hub-row">
+        <button
+          type="button"
+          className="friends-hub-row-profile"
+          onClick={() => setProfileUser(user)}
+          aria-label={`${user.display_name} profile`}
+        >
+          <AvatarImg
+            src={user.avatar_url}
+            fallback={user.display_name || "?"}
+            className="friends-hub-avatar friends-hub-avatar--fallback"
+            imgClassName="friends-hub-avatar"
+          />
+        </button>
+        <button type="button" className="friends-hub-row-name" onClick={() => openChat(user)}>
+          <VipDisplayName name={user.display_name} profile={user} variant="light" />
+        </button>
         {showChat && (
-          <button type="button" className="friends-item-chat" onClick={() => openChat(user)}>
-            💬
+          <button type="button" className="friends-hub-row-chat" onClick={() => openChat(user)} aria-label="Chat">
+            <IconChats />
           </button>
         )}
       </li>
     );
   }
 
-  return (
-    <div className="friends-hub">
-      <header className="friends-hub-header">
-        <h2>People</h2>
-        <button type="button" className="friends-hub-close" onClick={onClose}>
-          ✕
-        </button>
-      </header>
+  const hub = (
+    <div className="gplay-mobile-shell-backdrop gplay-mobile-shell-backdrop--friends">
+      <div className="gplay-mobile-shell friends-hub friends-hub--ref">
+        <header className="friends-hub-header friends-hub-header--ref">
+          <h2>People</h2>
+          <button type="button" className="friends-hub-close friends-hub-close--ref" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </header>
 
-      <div className="friends-tabs">
-        <button
-          type="button"
-          className={tab === "friends" ? "friends-tab--active" : ""}
-          onClick={() => setTab("friends")}
-        >
-          Friends ({mutual.length})
-        </button>
-        <button
-          type="button"
-          className={tab === "requests" ? "friends-tab--active" : ""}
-          onClick={() => setTab("requests")}
-        >
-          Requests{requests.length > 0 ? ` (${requests.length})` : ""}
-        </button>
-      </div>
+        <div className="friends-hub-tabs">
+          <button
+            type="button"
+            className={`friends-hub-tab ${tab === "friends" ? "friends-hub-tab--active" : ""}`}
+            onClick={() => setTab("friends")}
+          >
+            Friends ({mutual.length})
+          </button>
+          <button
+            type="button"
+            className={`friends-hub-tab ${tab === "requests" ? "friends-hub-tab--active" : ""}`}
+            onClick={() => setTab("requests")}
+          >
+            Requests{requests.length > 0 ? ` (${requests.length})` : ""}
+          </button>
+        </div>
 
-      <div className="friends-hub-body">
-        {tab === "friends" && (
-          <ul className="friends-list">
-            {mutual.length === 0 && (
-              <li className="friends-empty">Friends appear here after you accept a request</li>
-            )}
-            {mutual.map((u) => (
-              <FriendRow key={u.id} user={u} />
-            ))}
-          </ul>
-        )}
+        <div className="friends-hub-scroll">
+          {tab === "friends" && (
+            <ul className="friends-hub-list">
+              {mutual.length === 0 && (
+                <li className="friends-hub-empty">Friends appear here after you accept a request</li>
+              )}
+              {mutual.map((u) => (
+                <FriendRow key={u.id} user={u} />
+              ))}
+            </ul>
+          )}
 
-        {tab === "requests" && (
-          <ul className="friends-list friends-list--requests">
-            {requests.length === 0 && (
-              <li className="friends-empty">No friend requests right now</li>
-            )}
-            {requests.map((u) => (
-              <li key={u.id} className="friends-request-row">
-                <AvatarImg
-                  src={u.avatar_url}
-                  fallback={u.display_name || "?"}
-                  className="friends-item-avatar friends-item-avatar--fallback"
-                  imgClassName="friends-item-avatar"
-                />
-                <div className="friends-request-meta">
-                  <span className="friends-item-name">{u.display_name}</span>
-                  <span className="friends-request-hint">wants to be your friend</span>
-                </div>
-                <div className="friends-request-actions">
+          {tab === "requests" && (
+            <ul className="friends-hub-list">
+              {requests.length === 0 && (
+                <li className="friends-hub-empty">No friend requests right now</li>
+              )}
+              {requests.map((u) => (
+                <li key={u.id} className="friends-hub-request">
                   <button
                     type="button"
-                    className="friends-request-accept"
-                    disabled={busyId === u.id}
-                    onClick={() => handleAccept(u)}
+                    className="friends-hub-row-profile"
+                    onClick={() => setProfileUser(u)}
+                    aria-label={`${u.display_name} profile`}
                   >
-                    Accept
+                    <AvatarImg
+                      src={u.avatar_url}
+                      fallback={u.display_name || "?"}
+                      className="friends-hub-avatar friends-hub-avatar--fallback"
+                      imgClassName="friends-hub-avatar"
+                    />
                   </button>
-                  <button
-                    type="button"
-                    className="friends-request-reject"
-                    disabled={busyId === u.id}
-                    onClick={() => handleReject(u)}
-                  >
-                    Reject
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+                  <div className="friends-hub-request-meta">
+                    <VipDisplayName name={u.display_name} profile={u} variant="light" className="friends-hub-request-name" />
+                    <span className="friends-hub-request-hint">wants to be your friend</span>
+                  </div>
+                  <div className="friends-hub-request-actions">
+                    <button
+                      type="button"
+                      className="friends-hub-request-accept"
+                      disabled={busyId === u.id}
+                      onClick={() => handleAccept(u)}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      className="friends-hub-request-reject"
+                      disabled={busyId === u.id}
+                      onClick={() => handleReject(u)}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
+  );
+
+  return createPortal(
+    <>
+      {hub}
+      {profileUser && (
+        <UserFullProfileSheet
+          seat={{
+            user_id: profileUser.id,
+            display_name: profileUser.display_name,
+            avatar_url: profileUser.avatar_url,
+            user_code: profileUser.user_code,
+          }}
+          profile={profileUser}
+          viewerId={userId}
+          viewerName={displayName}
+          onClose={() => setProfileUser(null)}
+          onMessage={() => {
+            const friend = profileUser;
+            setProfileUser(null);
+            openChat(friend);
+          }}
+        />
+      )}
+    </>,
+    document.body,
   );
 }

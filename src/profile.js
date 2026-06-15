@@ -3,10 +3,11 @@ import { ROOM_CREATE_COST, STARTING_COINS, SUPER_ADMIN_COINS } from "./gifts.js"
 import { normalizeRoomTag, roomTagLabel } from "./roomTags.js";
 import { ROOM_SEAT_COUNT } from "./roomSeats.js";
 import { supabase } from "./supabase.js";
+import { purgeStaleRoomMessages } from "./roomMessages.js";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const PRESENCE_TTL_MS = 90_000;
-const SEAT_GHOST_TTL_MS = 10 * 60_000;
+const SEAT_GHOST_TTL_MS = PRESENCE_TTL_MS;
 const AVATAR_BUCKET = "avatars";
 
 async function purgeStalePresence(roomId) {
@@ -28,7 +29,7 @@ async function clearGhostSeats(roomId) {
     ghosts.map((seat) =>
       supabase
         .from("seats")
-        .update({ user_id: null, nickname: null })
+        .update({ user_id: null, nickname: null, updated_at: new Date().toISOString() })
         .eq("room_id", roomId)
         .eq("seat_number", seat.seat_number),
     ),
@@ -203,11 +204,21 @@ export async function loadProfileBundle(userId) {
   };
 }
 
-export async function updateProfile(userId, { displayName, avatarUrl, gender }) {
+export async function touchUserActivity(userId) {
+  if (!supabase || !userId) return;
+  const last_active_at = new Date().toISOString();
+  await supabase.from("profiles").update({ last_active_at }).eq("id", userId);
+}
+
+export async function updateProfile(userId, { displayName, avatarUrl, gender, country, bio }) {
   if (!supabase) throw new Error("Supabase is not configured");
 
   const patch = {};
-  if (displayName?.trim()) patch.display_name = displayName.trim();
+  if (displayName !== undefined) {
+    const name = String(displayName ?? "").trim();
+    if (name.length < 2) throw new Error("Nickname must be at least 2 characters");
+    patch.display_name = name;
+  }
   if (avatarUrl !== undefined) patch.avatar_url = avatarUrl.trim() || null;
   if (gender !== undefined) {
     const g = String(gender ?? "").trim().toLowerCase();
@@ -215,6 +226,16 @@ export async function updateProfile(userId, { displayName, avatarUrl, gender }) 
       throw new Error("Gender must be male or female");
     }
     patch.gender = g || null;
+  }
+  if (country !== undefined) {
+    patch.country = String(country ?? "").trim() || null;
+  }
+  if (bio !== undefined) {
+    patch.bio = String(bio ?? "").trim().slice(0, 200) || null;
+  }
+
+  if (!Object.keys(patch).length) {
+    throw new Error("Nothing to save");
   }
 
   const { data, error } = await supabase
@@ -260,7 +281,7 @@ export async function loadProfilesForUserIds(userIds) {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_url, user_code, charm, user_level, user_exp, vip_level, vip_points, vip_expires_at, title, gender, is_super_admin")
+    .select("id, display_name, avatar_url, user_code, charm, user_level, user_exp, vip_level, vip_points, vip_expires_at, title, gender, country, bio, is_super_admin")
     .in("id", ids);
   if (error) throw error;
 
@@ -386,6 +407,14 @@ export async function discoverRooms({ tab = "all", tag = "all", userId } = {}) {
     list = list.filter((r) => savedIds.has(r.id));
   } else if (tab === "popular") {
     list = [...list].sort((a, b) => (b.online_count ?? 0) - (a.online_count ?? 0));
+  } else {
+    list = [...list].sort((a, b) => {
+      const onlineDiff = (b.online_count ?? 0) - (a.online_count ?? 0);
+      if (onlineDiff) return onlineDiff;
+      const levelDiff = Number(b.room_level ?? 1) - Number(a.room_level ?? 1);
+      if (levelDiff) return levelDiff;
+      return String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""));
+    });
   }
 
   return list;
@@ -591,6 +620,7 @@ export async function cleanupTempRoomIfEmpty(roomId) {
 
   await purgeStalePresence(roomId);
   await clearGhostSeats(roomId);
+  await purgeStaleRoomMessages(roomId).catch(() => {});
 
   if (!(await isTempRoomEmpty(roomId))) return false;
 
@@ -605,6 +635,7 @@ export async function cleanupInactiveRoomUsers(roomId) {
   if (!supabase || !roomId) return;
   await purgeStalePresence(roomId);
   await clearGhostSeats(roomId);
+  await purgeStaleRoomMessages(roomId).catch(() => {});
 }
 
 export async function deleteRoomAsSuperAdmin(roomId, isSuperAdmin) {
@@ -653,10 +684,11 @@ export async function cleanupStaleTempRooms(maxAgeMs = 2 * 60 * 60 * 1000) {
     const ok = await cleanupTempRoomIfEmpty(room.id);
     if (ok) removed += 1;
   }
+  await purgeStaleRoomMessages(null).catch(() => {});
   return removed;
 }
 
-export async function createPersonalRoom({ userId, roomName, currentCoins, isSuperAdmin }) {
+export async function createPersonalRoom({ userId, roomName, currentCoins, isSuperAdmin, roomPassword = null }) {
   if (!supabase) throw new Error("Supabase is not configured");
   if (!isSuperAdmin && currentCoins < ROOM_CREATE_COST) {
     throw new Error(`You need ${ROOM_CREATE_COST} coins to create a room`);
@@ -686,12 +718,14 @@ export async function createPersonalRoom({ userId, roomName, currentCoins, isSup
     if (walletError) throw walletError;
   }
 
+  const password = String(roomPassword ?? "").trim() || null;
   const { error: roomError } = await supabase.from("rooms").insert({
     id: roomId,
     name: roomName.trim() || `Room ${roomCode}`,
     room_code: roomCode,
     owner_id: userId,
     is_custom: true,
+    room_password: password,
   });
   if (roomError) throw roomError;
 
@@ -709,6 +743,32 @@ export async function createPersonalRoom({ userId, roomName, currentCoins, isSup
   };
 }
 
+async function readWalletCoins(userId) {
+  const wid = walletUserId(userId);
+  const { data, error } = await supabase
+    .from("wallets")
+    .select("coins")
+    .eq("user_id", wid)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? Number(data.coins ?? 0) : null;
+}
+
+async function writeWalletCoins(userId, coins) {
+  const wid = walletUserId(userId);
+  const next = Math.max(0, Math.floor(Number(coins)));
+  const { data, error } = await supabase
+    .from("wallets")
+    .upsert(
+      { user_id: wid, coins: next, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" },
+    )
+    .select("coins")
+    .single();
+  if (error) throw error;
+  return Number(data?.coins ?? next);
+}
+
 export async function sendCoinsToUser({
   fromUserId,
   recipientUserCode,
@@ -719,13 +779,10 @@ export async function sendCoinsToUser({
 }) {
   if (!supabase) throw new Error("Supabase is not configured");
   const code = recipientUserCode?.trim().toUpperCase() ?? "";
-  const coinAmount = Number(amount);
+  const coinAmount = Math.floor(Number(amount));
 
   if ((!recipientUserId && (!code || code.length < 4)) || !coinAmount || coinAmount < 1) {
     throw new Error("Pick a friend and a valid amount");
-  }
-  if (!isSuperAdmin && coinAmount > currentCoins) {
-    throw new Error("Not enough coins");
   }
 
   let recipient;
@@ -750,36 +807,19 @@ export async function sendCoinsToUser({
   if (!recipient) throw new Error("No account found for that friend");
   if (recipient.id === fromUserId) throw new Error("Cannot send coins to yourself");
 
-  const recipientWalletId = walletUserId(recipient.id);
-  const senderWalletId = walletUserId(fromUserId);
-
-  const { data: recipientWallet } = await supabase
-    .from("wallets")
-    .select("coins")
-    .eq("user_id", recipientWalletId)
-    .maybeSingle();
-
-  if (!recipientWallet) {
-    await supabase.from("wallets").insert({ user_id: recipientWalletId, coins: 0 });
+  const senderBalance = isSuperAdmin
+    ? Number(currentCoins ?? 0)
+    : (await readWalletCoins(fromUserId)) ?? 0;
+  if (!isSuperAdmin && senderBalance < coinAmount) {
+    throw new Error("Not enough coins");
   }
 
-  const recipientBalance = Number(recipientWallet?.coins ?? 0);
-  const newRecipientBalance = recipientBalance + coinAmount;
+  const recipientBalance = (await readWalletCoins(recipient.id)) ?? 0;
+  await writeWalletCoins(recipient.id, recipientBalance + coinAmount);
 
-  const { error: recvError } = await supabase
-    .from("wallets")
-    .update({ coins: newRecipientBalance, updated_at: new Date().toISOString() })
-    .eq("user_id", recipientWalletId);
-  if (recvError) throw recvError;
-
-  let newSenderBalance = currentCoins;
+  let newSenderBalance = senderBalance;
   if (!isSuperAdmin) {
-    newSenderBalance = currentCoins - coinAmount;
-    const { error: sendError } = await supabase
-      .from("wallets")
-      .update({ coins: newSenderBalance, updated_at: new Date().toISOString() })
-      .eq("user_id", senderWalletId);
-    if (sendError) throw sendError;
+    newSenderBalance = await writeWalletCoins(fromUserId, senderBalance - coinAmount);
   }
 
   return { newSenderBalance, recipientName: recipient.display_name };

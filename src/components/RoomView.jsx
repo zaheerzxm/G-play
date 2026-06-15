@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVoice } from "../context/VoiceContext.jsx";
 import { addContribution, loadTodayTopContributors } from "../contribution.js";
 import { ensureStarterInventory, consumeInventoryGift, loadGiftInventory } from "../giftInventory.js";
-import { playGiftSound, playPfpGiftSound, playPremiumGiftSound } from "../giftSound.js";
+import { playGiftSound, playPfpGiftSound, playPremiumGiftSound, playRoomSoundEffect } from "../giftSound.js";
 import {
   isPremiumGift,
   premiumFxDuration,
@@ -11,10 +11,10 @@ import {
 } from "../giftPremiumTypes.js";
 import { deductWalletCoins, fetchWalletCoins } from "../wallet.js";
 import { addVipActivity } from "../vipActivity.js";
-import { effectiveVipLevel } from "../vipStatus.js";
+import { vipNameClass } from "./VipDisplayName.jsx";
 import { charmForGift } from "../charmTiers.js";
 import { formatCompactNumber } from "../formatCompact.js";
-import { findGift, findGiftByName, formatCoins, formatGiftMessage, giftPaysRewards, giftQuantityFromName, giftRewardUnitCost, giftSendUnitCost, isOrphanCharmMessage, looksLikeCharmSystemMessage, looksLikeGiftSystemMessage, rollGiftRewardResult, roomShieldEmoji, splitGiftMessage } from "../gifts.js";
+import { findGift, findGiftByName, formatCoins, formatGiftMessage, giftPaysRewards, giftQuantityFromName, giftRewardUnitCost, giftSendUnitCost, isOrphanCharmMessage, looksLikeCharmSystemMessage, looksLikeGiftSystemMessage, rollGiftRewardResultAsync, roomShieldEmoji, splitGiftMessage } from "../gifts.js";
 import { addUserExp } from "../userLevels.js";
 import { joinWaitingQueue, leaveWaitingQueue } from "../waitingQueue.js";
 import { reportRoom } from "../social.js";
@@ -40,10 +40,13 @@ import {
   buildGiftEffect,
   buildGiftHit,
   findSeatForRecipient,
+  giftChatDisplayLine,
   parseGiftMessage,
 } from "../giftFx.js";
 import { roomTagLabel } from "../roomTags.js";
+import { loadRoomScoreboard, saveRoomScoreboard } from "../roomScoreboard.js";
 import { addCharm, addRoomExp, applyGiftCharm, markDailyTask, tickWatchMinutes } from "../gamification.js";
+import { markGameTaskProgress } from "../gameTasks.js";
 import { buildReactionMessage, reactionFromMessage } from "../reactions.js";
 import ComboGiftButton from "./ComboGiftButton.jsx";
 import DailyTaskSheet from "./DailyTaskSheet.jsx";
@@ -57,6 +60,7 @@ import RoomAudienceSheet from "./RoomAudienceSheet.jsx";
 import GiftWallSheet from "./GiftWallSheet.jsx";
 import ModeConfirmSheet from "./ModeConfirmSheet.jsx";
 import { postSystemMessage } from "../roomLog.js";
+import { purgeStaleRoomMessages, roomMessageCutoffIso } from "../roomMessages.js";
 import {
   claimRedPacket,
   claimRedPacketDrop,
@@ -71,7 +75,8 @@ import {
 import { loadMutualFriends } from "../social.js";
 import { lookupProfileByCode } from "../profile.js";
 import ReactionPanel from "./ReactionPanel.jsx";
-import RoomModeSheet from "./RoomModeSheet.jsx";
+import RoomModeOverlay from "./RoomModeOverlay.jsx";
+import PkBarSheet from "./PkBarSheet.jsx";
 import RoomProfileSheet from "./RoomProfileSheet.jsx";
 import RoomSettingsSheet from "./RoomSettingsSheet.jsx";
 import UserProfileCard from "./UserProfileCard.jsx";
@@ -91,7 +96,7 @@ import {
   loadPrimaryCoupleBond,
   partnerUserId,
 } from "../relationships.js";
-import { ADJACENT_SEAT_PAIRS, ADMIN_SEAT, GAMES_MODE_SEAT_LAYOUT, HOST_SEAT, PARTNER_SEAT_NUMBERS, ROOM_SEAT_COUNT, SEAT_LAYOUT, VIDEO_MODE_SEAT_LAYOUT } from "../roomSeats.js";
+import { ADJACENT_SEAT_PAIRS, ADMIN_SEAT, GAMES_MODE_SEAT_LAYOUT, HOST_SEAT, occupiedPartnerPairSignals, PARTNER_SEAT_NUMBERS, ROOM_SEAT_COUNT, SEAT_LAYOUT, VIDEO_MODE_SEAT_LAYOUT } from "../roomSeats.js";
 import {
   blacklistUser,
   formatKickCooldown,
@@ -100,12 +105,15 @@ import {
   updateRoomSettings,
 } from "../roomAdmin.js";
 import { checkRoomEntry } from "../roomAccess.js";
+import { forgetRoomUnlock } from "../roomPassword.js";
 import { blockUser, isBlockedEitherWay } from "../userBlocks.js";
 import RoomBlacklistSheet from "./RoomBlacklistSheet.jsx";
 import KickUserDialog from "./KickUserDialog.jsx";
 import BlockUserDialog from "./BlockUserDialog.jsx";
 import RoomDock from "./RoomDock.jsx";
 import GameLauncher from "../games/GameLauncher.jsx";
+import { endActiveMafiaGameForRoom } from "../games/mafia/mafiaApi.js";
+import { endActiveDDDGameForRoom } from "../games/ddd/dddApi.js";
 import GamesSeatStrip from "./GamesSeatStrip.jsx";
 import VideoRoomPanel from "./VideoRoomPanel.jsx";
 import AddVideoSheet from "./AddVideoSheet.jsx";
@@ -120,8 +128,11 @@ import RoomMenu from "./RoomMenu.jsx";
 import SpeakerButton from "./SpeakerButton.jsx";
 import SeatActionSheet from "./SeatActionSheet.jsx";
 import AdminAssignSheet from "./AdminAssignSheet.jsx";
+import TransferHostSheet from "./TransferHostSheet.jsx";
 import CoinShopSheet from "./CoinShopSheet.jsx";
 import FunctionsGrid from "./FunctionsGrid.jsx";
+import ScoreboardSheet from "./ScoreboardSheet.jsx";
+import { IconCrown, IconFire, IconGuard, UiIcon } from "./NavIcons.jsx";
 import RedPacketSheet from "./RedPacketSheet.jsx";
 import RedPacketRain from "./RedPacketRain.jsx";
 import ReportSheet from "./ReportSheet.jsx";
@@ -135,7 +146,6 @@ import {
   rejectSeatInvite,
   sendSeatInvite,
 } from "../seatInvites.js";
-import PersonalChat from "./PersonalChat.jsx";
 import SeatEmoteFx from "./SeatEmoteFx.jsx";
 import GiftHitFx from "./GiftHitFx.jsx";
 import SvgaGiftFx from "./SvgaGiftFx.jsx";
@@ -155,10 +165,17 @@ function truncateName(name, max = 10) {
   return name.length > max ? `${name.slice(0, max)}…` : name;
 }
 
-const POLL_MS = 2000;
+const POLL_MS = 5000;
+const PRESENCE_HEARTBEAT_MS = 20_000;
+const ROOM_CLEANUP_MS = 120_000;
+const INVITE_FALLBACK_MS = 30_000;
 const PRESENCE_TTL_MS = 90_000;
 const ROOM_INACTIVE_KICK_MS = 10 * 60_000;
 const ACTIVE_SEAT_STORAGE_KEY = "gplay.activeSeat.v1";
+
+const SEAT_COLUMNS = "seat_number, user_id, nickname, mic_on, is_locked, updated_at";
+const MESSAGE_COLUMNS = "id, room_id, user_id, nickname, message, created_at";
+const PRESENCE_COLUMNS = "user_id, nickname, last_seen, room_id";
 
 function isSeatTaken(seat) {
   return Boolean(seat?.user_id);
@@ -212,16 +229,20 @@ function mergeMessageRows(prev, rows) {
   return [...byId.values()].sort((a, b) => messageSortKey(a) - messageSortKey(b));
 }
 
+function emptySeatOccupantPatch() {
+  return { user_id: null, nickname: null, updated_at: new Date().toISOString() };
+}
+
 async function clearStaleSeats(roomId, uid, name) {
   if (!supabase) return;
   await supabase
     .from("seats")
-    .update({ user_id: null, nickname: null })
+    .update(emptySeatOccupantPatch())
     .eq("room_id", roomId)
     .eq("user_id", uid);
   await supabase
     .from("seats")
-    .update({ user_id: null, nickname: null })
+    .update(emptySeatOccupantPatch())
     .eq("room_id", roomId)
     .ilike("nickname", name.trim());
 }
@@ -230,7 +251,7 @@ async function clearStaleSeatsExcept(roomId, uid, name, exceptSeatNumber) {
   if (!supabase) return;
   let mineQuery = supabase
     .from("seats")
-    .update({ user_id: null, nickname: null })
+    .update(emptySeatOccupantPatch())
     .eq("room_id", roomId)
     .eq("user_id", uid);
   if (exceptSeatNumber) mineQuery = mineQuery.neq("seat_number", exceptSeatNumber);
@@ -239,7 +260,7 @@ async function clearStaleSeatsExcept(roomId, uid, name, exceptSeatNumber) {
   if (!name?.trim()) return;
   let nameQuery = supabase
     .from("seats")
-    .update({ user_id: null, nickname: null })
+    .update(emptySeatOccupantPatch())
     .eq("room_id", roomId)
     .ilike("nickname", name.trim());
   if (exceptSeatNumber) nameQuery = nameQuery.neq("seat_number", exceptSeatNumber);
@@ -302,7 +323,7 @@ async function restoreStoredSeat(roomId, uid, name) {
   await clearStaleSeatsExcept(roomId, uid, name, seatNumber);
   const { error } = await supabase
     .from("seats")
-    .update({ user_id: uid, nickname: name })
+    .update({ user_id: uid, nickname: name, updated_at: new Date().toISOString() })
     .eq("room_id", roomId)
     .eq("seat_number", seatNumber);
   return !error;
@@ -338,6 +359,7 @@ function RoomContent({
   onSeatMicAllowedChange,
   onSavedRoomsChange,
   onProfileUpdate,
+  onOpenDirectChat,
   speakingUserIds,
   voiceStatus,
 }) {
@@ -347,6 +369,10 @@ function RoomContent({
   useEffect(() => {
     joinedAtRef.current = new Date().toISOString();
   }, [room?.id]);
+
+  useEffect(() => {
+    if (userId && room?.id) markGameTaskProgress(userId, "join_room");
+  }, [userId, room?.id]);
 
   const [seats, setSeats] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -382,7 +408,6 @@ function RoomContent({
   const [roomProfileOpen, setRoomProfileOpen] = useState(false);
   const [roomStats, setRoomStats] = useState({ members: 0, fans: 0 });
   const [roomOwner, setRoomOwner] = useState(null);
-  const [giftBanner, setGiftBanner] = useState(null);
   const [combo, setCombo] = useState(null);
   const [roomMeta, setRoomMeta] = useState(room);
   const [roomAdmins, setRoomAdmins] = useState([]);
@@ -402,16 +427,25 @@ function RoomContent({
   const [videoAddOpen, setVideoAddOpen] = useState(false);
   const [videoBusy, setVideoBusy] = useState(false);
   const [functionsOpen, setFunctionsOpen] = useState(false);
+  const [scoreboardOpen, setScoreboardOpen] = useState(false);
+  const [pkOpen, setPkOpen] = useState(false);
+  const [pkBattle, setPkBattle] = useState(null);
+  const [seatScores, setSeatScores] = useState({});
+  const [scoreboardSelection, setScoreboardSelection] = useState([]);
   const [gamesSessionActive, setGamesSessionActive] = useState(false);
   const [gamesWaitingActive, setGamesWaitingActive] = useState(false);
   const [dockChatConfig, setDockChatConfig] = useState(null);
   const liveGameRef = useRef(null);
+  const gamesUiRef = useRef(null);
   const wordleGuessAckRef = useRef(null);
+  const [gamesChatExpanded, setGamesChatExpanded] = useState(false);
   const [stickerOpen, setStickerOpen] = useState(false);
   const [coinShopOpen, setCoinShopOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminFromSettings, setAdminFromSettings] = useState(false);
+  const [transferHostOpen, setTransferHostOpen] = useState(false);
+  const [transferFromSettings, setTransferFromSettings] = useState(false);
   const [waitingOpen, setWaitingOpen] = useState(false);
   const [inviteTargetSeat, setInviteTargetSeat] = useState(null);
   const [inviteSeatUser, setInviteSeatUser] = useState(null);
@@ -424,7 +458,6 @@ function RoomContent({
   const seenRainMsgRef = useRef(new Set());
   const [topContributors, setTopContributors] = useState([]);
   const [giftInventory, setGiftInventory] = useState({});
-  const [personalChatFriend, setPersonalChatFriend] = useState(null);
   const [seatReactions, setSeatReactions] = useState([]);
   const [seatEmoteAnim, setSeatEmoteAnim] = useState({});
   const [giftHits, setGiftHits] = useState([]);
@@ -534,10 +567,7 @@ function RoomContent({
 
   useEffect(() => {
     if (!room?.id) return;
-    const load = () => loadPendingInvitesForRoom(room.id).then(setPendingInvites).catch(() => {});
-    load();
-    const t = setInterval(load, 4000);
-    return () => clearInterval(t);
+    loadPendingInvitesForRoom(room.id).then(setPendingInvites).catch(() => {});
   }, [room?.id]);
 
   useEffect(() => {
@@ -549,6 +579,17 @@ function RoomContent({
       })
       .catch(() => {});
   }, [userId, room?.id]);
+
+  useEffect(() => {
+    if (!room?.id) return;
+    setSeatScores(loadRoomScoreboard(room.id));
+    setScoreboardSelection([]);
+  }, [room?.id]);
+
+  useEffect(() => {
+    if (!room?.id) return;
+    saveRoomScoreboard(room.id, seatScores);
+  }, [room?.id, seatScores]);
 
   const mySeats = userId ? seats.filter((s) => s.user_id === userId) : [];
   const mySeat = mySeats[0]?.seat_number ?? null;
@@ -562,7 +603,11 @@ function RoomContent({
 
   useEffect(() => {
     if (!userId || !mySeat) return undefined;
-    const t = setInterval(() => tickWatchMinutes(userId, 1).catch(() => {}), 60_000);
+    const t = setInterval(() => {
+      tickWatchMinutes(userId, 1)
+        .then(() => markGameTaskProgress(userId, "stay_in_room", 1))
+        .catch(() => {});
+    }, 60_000);
     return () => clearInterval(t);
   }, [userId, mySeat]);
 
@@ -578,20 +623,9 @@ function RoomContent({
   useEffect(() => {
     if (!room?.id || !userId) {
       setSeatInvite(null);
-      return undefined;
+      return;
     }
-    let active = true;
-    const refresh = () => {
-      loadPendingSeatInvite(room.id, userId).then((row) => {
-        if (active) setSeatInvite(row);
-      });
-    };
-    refresh();
-    const t = setInterval(refresh, 1000);
-    return () => {
-      active = false;
-      clearInterval(t);
-    };
+    loadPendingSeatInvite(room.id, userId).then(setSeatInvite).catch(() => {});
   }, [room?.id, userId]);
 
   const isHost = isGlobalRoom && mySeat === HOST_SEAT;
@@ -602,6 +636,43 @@ function RoomContent({
   const canManageRoom = isRoomOwner || isDelegatedAdmin || isSuperAdmin;
   const canChangeMode = isRoomOwner || isHost || isDelegatedAdmin || isSuperAdmin;
   const seatMap = Object.fromEntries(seats.map((s) => [s.seat_number, s]));
+
+  const roomHostUserId = useMemo(() => {
+    if (isGlobalRoom) {
+      return seats.find((s) => s.seat_number === HOST_SEAT)?.user_id ?? null;
+    }
+    return roomMeta.owner_id ?? null;
+  }, [isGlobalRoom, seats, roomMeta.owner_id]);
+
+  const roomAdminUserIds = useMemo(() => {
+    const ids = new Set(roomAdmins.map((a) => a.id).filter(Boolean));
+    if (isGlobalRoom) {
+      const adminSeatUser = seats.find((s) => s.seat_number === ADMIN_SEAT)?.user_id;
+      if (adminSeatUser) ids.add(adminSeatUser);
+    }
+    return [...ids];
+  }, [roomAdmins, isGlobalRoom, seats]);
+
+  const onlineSuperAdminIds = useMemo(
+    () => onlineUsers
+      .map((u) => u.user_id)
+      .filter((id) => id && profileMap[id]?.is_super_admin),
+    [onlineUsers, profileMap],
+  );
+
+  const gameRoomControlContext = useMemo(
+    () => ({
+      ownerUserId: roomMeta.owner_id ?? null,
+      roomHostUserId,
+      roomAdminUserIds,
+      superAdminUserIds: onlineSuperAdminIds,
+      onlineUsers: onlineUsers.map((u) => ({
+        user_id: u.user_id,
+        last_seen: u.last_seen,
+      })),
+    }),
+    [roomMeta.owner_id, roomHostUserId, roomAdminUserIds, onlineSuperAdminIds, onlineUsers],
+  );
 
   const inviteCandidates = useMemo(() => {
     const seatByUser = {};
@@ -645,6 +716,10 @@ function RoomContent({
   const giftRecipients = seats.filter((s) => isSeatTaken(s));
   const seatedUsers = seats.filter((s) => isSeatTaken(s));
   const seatBonds = useMemo(() => activeSeatBonds(seats, userBonds), [seats, userBonds]);
+  const partnerPairSignals = useMemo(
+    () => occupiedPartnerPairSignals(seats, roomMeta.partner_seat_enabled !== false),
+    [seats, roomMeta.partner_seat_enabled],
+  );
 
   const refreshBonds = useCallback(async () => {
     const userIds = seats.map((s) => s.user_id).filter(Boolean);
@@ -714,6 +789,11 @@ function RoomContent({
   }, [error]);
 
   useEffect(() => {
+    if (voice?.voiceStatus !== "error" || !voice?.voiceError) return;
+    setToast(voice.voiceError);
+  }, [voice?.voiceStatus, voice?.voiceError]);
+
+  useEffect(() => {
     return () => {
       clearTimeout(comboTimerRef.current);
       clearTimeout(giftDrainTimerRef.current);
@@ -723,12 +803,6 @@ function RoomContent({
   function resetComboTimer() {
     clearTimeout(comboTimerRef.current);
     comboTimerRef.current = setTimeout(() => setCombo(null), 3500);
-  }
-
-  function showGiftBanner(banner) {
-    if (!banner) return;
-    setGiftBanner(banner);
-    setTimeout(() => setGiftBanner((cur) => (cur?.id === banner.id ? null : cur)), 4500);
   }
 
   const [audienceInitialTab, setAudienceInitialTab] = useState("contribution");
@@ -768,6 +842,9 @@ function RoomContent({
     const prev = roomMeta;
     const updated = await updateRoomSettings(roomMeta.id, patch);
     setRoomMeta((p) => ({ ...p, ...updated }));
+    if (patch.room_password !== undefined && patch.room_password !== (prev.room_password ?? null)) {
+      forgetRoomUnlock(roomMeta.id);
+    }
     const logs = [];
     if (patch.announcement !== undefined && patch.announcement !== (prev.announcement ?? null)) {
       logs.push(patch.announcement ? "Owner updated the announcement" : "Owner cleared the announcement");
@@ -795,6 +872,13 @@ function RoomContent({
     }
     if (logs.length) await loadMessages(room.id);
     setToast("Settings saved");
+  }
+
+  function handleOwnershipTransferred(updatedRoom) {
+    setRoomMeta((prev) => ({ ...prev, ...updatedRoom }));
+    setRoomOwner(null);
+    loadRoomOwnerProfile(updatedRoom.owner_id).then(setRoomOwner).catch(() => {});
+    postSystemMessage(room.id, "Room ownership was transferred").then(() => loadMessages(room.id)).catch(() => {});
   }
 
   async function handleToggleGiftSound() {
@@ -846,7 +930,7 @@ function RoomContent({
     if (!supabase) return;
     const { data, error: seatError } = await supabase
       .from("seats")
-      .select("*")
+      .select(SEAT_COLUMNS)
       .eq("room_id", roomId)
       .order("seat_number");
     if (seatError) throw seatError;
@@ -867,13 +951,15 @@ function RoomContent({
     if (!supabase) return;
     let query = supabase
       .from("messages")
-      .select("*")
+      .select(MESSAGE_COLUMNS)
       .eq("room_id", roomId)
       .order("created_at", { ascending: true });
 
-    if (joinedAtRef.current) {
-      query = query.gte("created_at", joinedAtRef.current);
-    }
+    const retentionSince = roomMessageCutoffIso();
+    const since = [joinedAtRef.current, retentionSince]
+      .filter(Boolean)
+      .reduce((latest, ts) => (ts > latest ? ts : latest), retentionSince);
+    query = query.gte("created_at", since);
 
     const { data, error: msgError } = await query.limit(200);
     if (msgError) throw msgError;
@@ -887,7 +973,7 @@ function RoomContent({
     const since = new Date(Date.now() - PRESENCE_TTL_MS).toISOString();
     const { data, error: presError } = await supabase
       .from("presence")
-      .select("*")
+      .select(PRESENCE_COLUMNS)
       .eq("room_id", roomId)
       .gte("last_seen", since)
       .order("nickname");
@@ -925,11 +1011,17 @@ function RoomContent({
     if (sessionReleasedRef.current || !room?.id || !supabase || !userId) return;
     sessionReleasedRef.current = true;
     clearStoredSeat(room.id, userId);
+    await supabase
+      .from("seats")
+      .update(emptySeatOccupantPatch())
+      .eq("room_id", room.id)
+      .eq("user_id", userId);
     await Promise.all([
       clearStaleSeats(room.id, userId, displayName),
       removePresence(room.id, userId),
       leaveWaitingQueue(room.id, userId).catch(() => {}),
     ]);
+    await purgeStaleRoomMessages(room.id).catch(() => {});
     if (room.is_temp || roomMeta.is_temp) {
       await cleanupTempRoomIfEmpty(room.id).catch(() => {});
     }
@@ -940,6 +1032,15 @@ function RoomContent({
       releaseRoomSession();
     };
   }, [releaseRoomSession]);
+
+  useEffect(() => {
+    if (!room?.id || !userId) return undefined;
+    const onPageHide = () => {
+      releaseRoomSession();
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [room?.id, userId, releaseRoomSession]);
 
   useEffect(() => {
     if (!userId || !room?.id || isRoomOwner) return;
@@ -1037,7 +1138,7 @@ function RoomContent({
         .then(() => Promise.all([loadSeats(room.id), loadPresence(room.id)]))
         .catch(() => {});
     };
-    const t = setInterval(runCleanup, 60_000);
+    const t = setInterval(runCleanup, ROOM_CLEANUP_MS);
     return () => clearInterval(t);
   }, [room?.id, loadSeats, loadPresence]);
 
@@ -1076,8 +1177,11 @@ function RoomContent({
     let active = true;
     let pollTimer = null;
     let presenceTimer = null;
+    let inviteFallbackTimer = null;
     let seatsOk = false;
     let messagesOk = false;
+    let presenceOk = false;
+    let inviteOk = false;
 
     const syncRoomMeta = () => {
       loadRoomById(room.id)
@@ -1113,11 +1217,11 @@ function RoomContent({
     };
 
     const startPresencePolling = () => {
-      if (presenceTimer) return;
+      if (presenceTimer || presenceOk) return;
       presenceTimer = setInterval(() => {
-        if (!active) return;
+        if (!active || presenceOk) return;
         upsertPresence(room.id, userId, displayName).finally(() => {
-          if (active) loadPresence(room.id);
+          if (active && !presenceOk) loadPresence(room.id);
         });
       }, 5000);
     };
@@ -1134,6 +1238,30 @@ function RoomContent({
       setLive(realtimeOk);
       if (realtimeOk) stopPolling();
       else startPolling();
+      if (presenceOk) stopPresencePolling();
+      else startPresencePolling();
+    };
+
+    const refreshInvites = () => {
+      loadPendingInvitesForRoom(room.id).then(setPendingInvites).catch(() => {});
+      loadPendingSeatInvite(room.id, userId).then((row) => {
+        if (active) setSeatInvite(row);
+      }).catch(() => {});
+    };
+
+    const startInviteFallback = () => {
+      if (inviteFallbackTimer) return;
+      inviteFallbackTimer = setInterval(() => {
+        if (!active || inviteOk) return;
+        refreshInvites();
+      }, INVITE_FALLBACK_MS);
+    };
+
+    const stopInviteFallback = () => {
+      if (inviteFallbackTimer) {
+        clearInterval(inviteFallbackTimer);
+        inviteFallbackTimer = null;
+      }
     };
 
     const seatsChannel = supabase
@@ -1141,7 +1269,9 @@ function RoomContent({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "seats", filter: `room_id=eq.${room.id}` },
-        () => loadSeats(room.id),
+        () => {
+          loadSeats(room.id);
+        },
       )
       .subscribe((status) => {
         if (!active) return;
@@ -1209,9 +1339,15 @@ function RoomContent({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "presence", filter: `room_id=eq.${room.id}` },
-        () => loadPresence(room.id),
+        () => {
+          loadPresence(room.id);
+        },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (!active) return;
+        presenceOk = status === "SUBSCRIBED";
+        checkLive();
+      });
 
     const inviteChannel = supabase
       .channel(`seat-invites-${room.id}-${userId}`)
@@ -1220,15 +1356,15 @@ function RoomContent({
         { event: "*", schema: "public", table: "seat_invites", filter: `room_id=eq.${room.id}` },
         () => {
           if (!active) return;
-          loadPendingInvitesForRoom(room.id).then(setPendingInvites).catch(() => {});
-          if (!mySeat) {
-            loadPendingSeatInvite(room.id, userId).then((row) => {
-              if (active) setSeatInvite(row);
-            });
-          }
+          refreshInvites();
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (!active) return;
+        inviteOk = status === "SUBSCRIBED";
+        if (inviteOk) stopInviteFallback();
+        else startInviteFallback();
+      });
 
     const roomMetaChannel = supabase
       .channel(`room-meta-${room.id}`)
@@ -1248,24 +1384,20 @@ function RoomContent({
       .subscribe();
 
     syncRoomMeta();
-
-    startPolling();
-    startPresencePolling();
-    const syncLabel = setTimeout(() => {
-      if (active) setLive(true);
-    }, 4000);
+    startInviteFallback();
 
     const heartbeat = setInterval(() => {
+      if (document.hidden) return;
       upsertPresence(room.id, userId, displayName).finally(() => {
-        if (active) loadPresence(room.id);
+        if (active && !presenceOk) loadPresence(room.id);
       });
-    }, 20_000);
+    }, PRESENCE_HEARTBEAT_MS);
 
     return () => {
       active = false;
       stopPolling();
       stopPresencePolling();
-      clearTimeout(syncLabel);
+      stopInviteFallback();
       clearInterval(heartbeat);
       setLive(false);
       supabase.removeChannel(seatsChannel);
@@ -1518,7 +1650,7 @@ function RoomContent({
     const clearSeat = (seatNumber) => {
       supabase
         .from("seats")
-        .update({ user_id: null, nickname: null })
+        .update(emptySeatOccupantPatch())
         .eq("room_id", room.id)
         .eq("seat_number", seatNumber);
     };
@@ -1551,7 +1683,7 @@ function RoomContent({
     try {
       const { error: kickError } = await supabase
         .from("seats")
-        .update({ user_id: null, nickname: null })
+        .update(emptySeatOccupantPatch())
         .eq("room_id", room.id)
         .eq("seat_number", seatNumber);
       if (kickError) setError(kickError.message);
@@ -1596,7 +1728,7 @@ function RoomContent({
       if (occupied) {
         const { error: assignError } = await supabase
           .from("seats")
-          .update({ user_id: targetUser.user_id, nickname: name })
+          .update({ user_id: targetUser.user_id, nickname: name, updated_at: new Date().toISOString() })
           .eq("room_id", room.id)
           .eq("seat_number", seatNumber);
         if (assignError) setError(assignError.message);
@@ -1644,7 +1776,7 @@ function RoomContent({
 
       const { data, error: updateError } = await supabase
         .from("seats")
-        .update({ user_id: userId, nickname: displayName })
+        .update({ user_id: userId, nickname: displayName, updated_at: new Date().toISOString() })
         .eq("room_id", room.id)
         .eq("seat_number", seatNumber)
         .is("user_id", null)
@@ -1672,7 +1804,7 @@ function RoomContent({
 
     const { error: updateError } = await supabase
       .from("seats")
-      .update({ user_id: null, nickname: null })
+      .update(emptySeatOccupantPatch())
       .eq("room_id", room.id)
       .eq("user_id", userId);
 
@@ -1694,10 +1826,6 @@ function RoomContent({
           : seat.avatar_url || prof?.avatar_url || null,
       user_code: seat.user_code || prof?.user_code || null,
     };
-  }
-
-  function vipNameClass(profile) {
-    return effectiveVipLevel(profile) > 0 ? "vip-name-glow" : "";
   }
 
   function handleSeatClick(seatNumber) {
@@ -1816,9 +1944,15 @@ function RoomContent({
     try {
       await ensureRoomSeats(room.id);
       await clearStaleSeatsExcept(room.id, userId, displayName, seatNumber);
+      const keepMicOn = seatMap[mySeat]?.mic_on !== false;
       const { data, error: updateError } = await supabase
         .from("seats")
-        .update({ user_id: userId, nickname: displayName })
+        .update({
+          user_id: userId,
+          nickname: displayName,
+          mic_on: keepMicOn,
+          updated_at: new Date().toISOString(),
+        })
         .eq("room_id", room.id)
         .eq("seat_number", seatNumber)
         .is("user_id", null)
@@ -1856,7 +1990,7 @@ function RoomContent({
 
   async function shareToContact(contact) {
     setShareOpen(false);
-    setPersonalChatFriend(contact);
+    onOpenDirectChat?.(contact);
     setToast(`Share room ID ${room.room_code ?? room.id} with ${contact.display_name}`);
   }
 
@@ -1991,7 +2125,7 @@ function RoomContent({
       let luckyMultiplier = 1;
       const svgaUrl = giftSvgaUrl(gift.id);
       if (paysRewards) {
-        const rewardResult = rollGiftRewardResult(rewardUnit, quantity);
+        const rewardResult = await rollGiftRewardResultAsync(rewardUnit, quantity);
         totalReward = rewardResult.total;
         luckyReward = Boolean(rewardResult.lucky);
         luckyMultiplier = rewardResult.multiplier ?? 1;
@@ -2041,6 +2175,16 @@ function RoomContent({
       const value = fromInventory
         ? Math.max(Number(gift.charm ?? 1) * 5, 1) * quantity
         : Math.max(unitCost, 1) * quantity;
+
+      if (pkBattle?.active && target.seat_number) {
+        const seatNum = Number(target.seat_number);
+        if (seatNum >= 1 && seatNum <= 7) {
+          setPkBattle((prev) => (prev ? { ...prev, teamA: prev.teamA + value } : prev));
+        } else if (seatNum >= 8) {
+          setPkBattle((prev) => (prev ? { ...prev, teamB: prev.teamB + value } : prev));
+        }
+      }
+
       const text = formatGiftMessage({
         senderName: senderLabel,
         emoji: gift.emoji,
@@ -2150,6 +2294,7 @@ function RoomContent({
         .then(() => loadTodayTopContributors(room.id).then(setTopContributors))
         .catch(() => {});
       markDailyTask(userId, "sent_gift").catch(() => {});
+      markGameTaskProgress(userId, "send_gift");
       mergeProfiles([userId, target.user_id]).catch(() => {});
 
     } catch (e) {
@@ -2185,16 +2330,34 @@ function RoomContent({
     if (giftDrainingRef.current) return;
     clearTimeout(giftDrainTimerRef.current);
     giftDrainingRef.current = true;
-    if (giftQueueRef.current.length > 1) {
+
+    const merged = new Map();
+    while (giftQueueRef.current.length) {
+      const job = giftQueueRef.current.shift();
+      const key = giftJobKey(job.gift, job.target, job.opts);
+      const pending = merged.get(key);
+      if (pending) {
+        pending.opts = {
+          ...pending.opts,
+          quantity: normalizeGiftQuantity(pending.opts) + normalizeGiftQuantity(job.opts),
+        };
+      } else {
+        merged.set(key, job);
+      }
+    }
+    setGiftQueueLen(0);
+
+    if (merged.size > 1) {
       setGiftEffects([]);
       setGiftHits([]);
       setSvgaGift(null);
     }
-    while (giftQueueRef.current.length) {
-      const job = giftQueueRef.current.shift();
-      setGiftQueueLen(queuedGiftQuantity());
+
+    for (const job of merged.values()) {
+      setGiftQueueLen(normalizeGiftQuantity(job.opts));
       await executeGift(job.gift, job.target, job.opts);
     }
+
     giftDrainingRef.current = false;
     setGiftQueueLen(0);
     scheduleRestoreGiftSheet();
@@ -2405,8 +2568,12 @@ function RoomContent({
   }
 
   async function handleAcceptSeatInvite() {
-    if (!seatInvite) return;
+    if (!seatInvite || seatBusy) return;
     const seatNumber = seatInvite.seat_number;
+    switchingSeatRef.current = true;
+    setSeatSwitching(true);
+    setSeatBusy(true);
+    setError(null);
     try {
       const accepted = await acceptSeatInvite({
         roomId: room.id,
@@ -2417,10 +2584,14 @@ function RoomContent({
       const acceptedSeatNumber = accepted?.seatNumber ?? seatNumber;
       saveStoredSeat(room.id, userId, acceptedSeatNumber);
       setSeatInvite(null);
-      await loadSeats(room.id);
       setToast(`You joined seat ${acceptedSeatNumber}`);
     } catch (e) {
       setError(e.message ?? "Could not accept seat invite");
+    } finally {
+      switchingSeatRef.current = false;
+      setSeatSwitching(false);
+      setSeatBusy(false);
+      await loadSeats(room.id);
     }
   }
 
@@ -2606,6 +2777,14 @@ function RoomContent({
 
   async function endActiveGameForRoom() {
     if (!roomMeta?.id || !userId) return;
+    if (supabase) {
+      try {
+        await endActiveMafiaGameForRoom(roomMeta.id);
+        await endActiveDDDGameForRoom(roomMeta.id);
+      } catch {
+        /* only room owner/admin or game host can stop */
+      }
+    }
     try {
       connectSocket();
       await emitAck("endGame", { roomId: roomMeta.id, userId, force: true });
@@ -2633,7 +2812,7 @@ function RoomContent({
           seated.map((s) =>
             supabase
               .from("seats")
-              .update({ user_id: null, nickname: null })
+              .update(emptySeatOccupantPatch())
               .eq("room_id", room.id)
               .eq("seat_number", s.seat_number),
           ),
@@ -2862,6 +3041,8 @@ function RoomContent({
   const roomExp = Number(roomMeta.room_exp ?? 0);
   const roomExpLabel = formatCompactNumber(roomExp);
   const currentRoomMode = roomMeta.room_mode ?? "normal";
+  // Voice room seats + chat: VIP = white text with golden glaze (non-VIP keeps dock orange).
+  const vipNameVariant = "chart";
   const isGamesRoom = currentRoomMode === "games";
   const isVideoRoom = currentRoomMode === "video";
   const roomVideo = useMemo(() => readRoomVideo(roomMeta), [roomMeta]);
@@ -2909,32 +3090,52 @@ function RoomContent({
           <button type="button" className="stage-back" onClick={() => onMinimize?.()} aria-label="Back">
             ←
           </button>
-          <button type="button" className="stage-title-wrap stage-title-wrap--button" onClick={openRoomProfile}>
+          <div className="stage-title-wrap">
             <div className="stage-title-row">
-              <span
+              <button
+                type="button"
                 className="stage-level"
-                title="Room level & daily tasks"
+                title="Room profile"
+                aria-label="Open room profile"
+                onClick={openRoomProfile}
               >
                 {roomMeta.room_level ?? 1}
-              </span>
+              </button>
               <div className="stage-name-block">
-                <h1 className="stage-title">{truncateName(roomTitle, 18)}</h1>
+                <button
+                  type="button"
+                  className="stage-title stage-title--button"
+                  onClick={openRoomProfile}
+                >
+                  {truncateName(roomTitle, 18)}
+                </button>
                 <p className="stage-code">
-                  {room.room_code && <span>ID: {room.room_code}</span>}
-                  <span
+                  {room.room_code && (
+                    <button
+                      type="button"
+                      className="stage-code-id"
+                      onClick={openRoomProfile}
+                      aria-label={`Room ID ${room.room_code}`}
+                    >
+                      ID: {room.room_code}
+                    </button>
+                  )}
+                  <button
+                    type="button"
                     className="stage-exp-link"
                     title="Room contribution"
+                    onClick={() => openAudienceSheet("contribution")}
                   >
-                    🔥 {roomExpLabel}
-                  </span>
+                    <UiIcon Icon={IconFire} /> {roomExpLabel}
+                  </button>
                 </p>
               </div>
               {roomFollowing && <span className="stage-friend-tag">Following</span>}
             </div>
-          </button>
+          </div>
           {headerGuard > 0 && (
             <span className="stage-guard-badge" title="Your guard toward partner">
-              🛡️ {formatCompactNumber(headerGuard)}
+              <UiIcon Icon={IconGuard} /> {formatCompactNumber(headerGuard)}
             </span>
           )}
           <div className="stage-meta">
@@ -2955,7 +3156,11 @@ function RoomContent({
                     className={`stage-top-avatar stage-top-avatar--rank${rank}`}
                     title={`${s.nickname || s.display_name || "Guest"}${score != null ? ` · ${formatCompactNumber(score)} gold today` : ""}`}
                   >
-                    {rank === 1 && <span className="stage-top-crown" aria-hidden>👑</span>}
+                    {rank === 1 && (
+                      <span className="stage-top-crown" aria-hidden>
+                        <IconCrown />
+                      </span>
+                    )}
                     {url ? (
                       <AvatarImg
                         src={url}
@@ -3033,6 +3238,35 @@ function RoomContent({
         />
 
         {toast && <p className="stage-toast">{toast}</p>}
+        {pkBattle?.active && (
+          <div className="pk-room-strip">
+            <button type="button" className="pk-room-strip-tag" onClick={() => setPkOpen(true)} aria-label="PK settings">
+              PK
+            </button>
+            <div className="pk-bar-track pk-bar-track--room">
+              <div
+                className="pk-bar-side pk-bar-side--a"
+                style={{ flex: Math.max(1, pkBattle.teamA + 1) }}
+              >
+                <span>A</span>
+                <strong>{pkBattle.teamA}</strong>
+              </div>
+              <span className="pk-bar-vs pk-bar-vs--room">VS</span>
+              <div
+                className="pk-bar-side pk-bar-side--b"
+                style={{ flex: Math.max(1, pkBattle.teamB + 1) }}
+              >
+                <strong>{pkBattle.teamB}</strong>
+                <span>B</span>
+              </div>
+            </div>
+            {canModerate && (
+              <button type="button" className="pk-room-strip-end" onClick={() => setPkBattle(null)}>
+                End
+              </button>
+            )}
+          </div>
+        )}
         {inviteSeatUser && (
           <div className="stage-seat-picker-hint">
             <span>Choose an empty seat for {inviteSeatUser.nickname || "user"}</span>
@@ -3119,7 +3353,7 @@ function RoomContent({
             hits={giftHits}
             onDone={(id) => setGiftHits((prev) => prev.filter((h) => h.id !== id))}
           />
-          <SeatBondLayer bonds={seatBonds} onBondTap={handleSeatBondTap} />
+          <SeatBondLayer bonds={seatBonds} pairSignals={partnerPairSignals} onBondTap={handleSeatBondTap} />
           {svgaGift && (
             <SvgaGiftFx
               key={svgaGift.id}
@@ -3184,7 +3418,7 @@ function RoomContent({
                     <span className={`seat-label-slot ${isEmpty ? "seat-label-slot--empty" : ""}`}>
                       {!isEmpty && (
                         <span
-                          className={`seat-label ${!isMine ? "seat-label--faded" : ""} ${vipNameClass(seatProfile)}`}
+                          className={`seat-label ${!isMine ? "seat-label--faded" : ""} ${vipNameClass(seatProfile, vipNameVariant)}`}
                           data-vip-name={seat.nickname || "Guest"}
                         >
                           {seat.nickname || "Guest"}
@@ -3222,6 +3456,7 @@ function RoomContent({
             userId={userId}
             userName={displayName}
             canHost={canModerate || isRoomOwner}
+            roomControlContext={gameRoomControlContext}
             ownerUserId={roomMeta.owner_id}
             onDeactivateGameMode={deactivateGamesModeAfterPlay}
             onSessionActiveChange={setGamesSessionActive}
@@ -3231,6 +3466,7 @@ function RoomContent({
             chatDraft={chatInput}
             wordleGuessAckRef={wordleGuessAckRef}
             liveGameRef={liveGameRef}
+            gamesUiRef={gamesUiRef}
             avatarUrl={avatarUrl}
             seatNumber={mySeat}
           />
@@ -3238,14 +3474,50 @@ function RoomContent({
 
           </div>
 
-        {(canModerate || audienceCount > 0 || (!mySeat && !seatSwitching && !readStoredSeat(room?.id, userId))) && (
+        {(audienceCount > 0 || canModerate) && (
           <button type="button" className="stage-waiting" onClick={() => openWaitingQueue(null, false)}>
             <span className="stage-waiting-icon">🪑</span>
+            {unseatedAudience.length > 0 && (
+              <span className="stage-waiting-avatars" aria-hidden>
+                {unseatedAudience.slice(0, 3).map((u) => {
+                  const initial = (u.nickname || "?").charAt(0).toUpperCase();
+                  return u.avatar_url ? (
+                    <img key={u.user_id} src={u.avatar_url} alt="" className="stage-waiting-avatar" />
+                  ) : (
+                    <span key={u.user_id} className="stage-waiting-avatar stage-waiting-avatar--fallback">
+                      {initial}
+                    </span>
+                  );
+                })}
+              </span>
+            )}
             <span>Audience {audienceCount > 0 ? `(${audienceCount})` : ""}</span>
           </button>
         )}
 
-          <div className="stage-split-chat">
+          <div
+            className={`stage-split-chat ${
+              inGameLayout
+                ? `stage-split-chat--games ${gamesChatExpanded ? "stage-split-chat--expanded" : "stage-split-chat--collapsed"}`
+                : ""
+            }`}
+          >
+        {inGameLayout && (
+          <div className="games-chat-head">
+            <button
+              type="button"
+              className="games-chat-toggle"
+              aria-expanded={gamesChatExpanded}
+              aria-label={gamesChatExpanded ? "Collapse chat" : "Expand chat"}
+              onClick={() => setGamesChatExpanded((v) => !v)}
+            >
+              <span className="games-chat-chevron" aria-hidden>
+                {gamesChatExpanded ? "⌄" : "⌃"}
+              </span>
+            </button>
+            <div className="games-chat-handle" aria-hidden />
+          </div>
+        )}
         <div className="stage-chat" ref={chatScrollRef} onScroll={handleChatScroll}>
           <div className="chat-message chat-message--compact chat-message--system">
             <div className="chat-message-head">
@@ -3261,7 +3533,7 @@ function RoomContent({
             .filter((msg, i, arr) => !isOrphanCharmMessage(msg, arr[i - 1]))
             .map((msg) => {
             const isGift = msg.message?.includes("— won ");
-            const giftParts = isGift ? splitGiftMessage(msg.message) : null;
+            const giftParts = isGift ? giftChatDisplayLine(msg.message) : null;
             const isCharm = !isGift && looksLikeCharmSystemMessage(msg.message);
             const isAnon = msg.nickname === "Anonymous";
             const sticker = parseStickerMessage(msg.message);
@@ -3280,7 +3552,7 @@ function RoomContent({
               return (
                 <div key={msg.id} className="chat-message chat-message--media">
                   <div className="chat-message-head">
-                    <span className={`chat-bubble-name ${vipNameClass(chatProfile)}`} data-vip-name={displayName}>
+                    <span className={`chat-bubble-name ${vipNameClass(chatProfile, vipNameVariant)}`} data-vip-name={displayName}>
                       {displayName}
                     </span>
                     {!isSystem && !isAnon && chatProfile && <UserBadges profile={chatProfile} compact showLevel={false} />}
@@ -3298,7 +3570,7 @@ function RoomContent({
                         </button>
                       </span>
                     )}
-                    {messageTime && <span className="chat-message-time">{messageTime}</span>}
+                    {messageTime && <span className="chat-time-inline">{messageTime}</span>}
                   </div>
                 </div>
               );
@@ -3310,14 +3582,16 @@ function RoomContent({
                 className={`chat-message chat-message--compact ${isGift ? "chat-message--gift" : ""} ${isCharm ? "chat-message--charm" : ""} ${isSystem ? "chat-message--system" : ""}`}
               >
                 <div className="chat-message-head">
-                  <span className={`chat-bubble-name ${vipNameClass(chatProfile)}`} data-vip-name={displayName}>
+                  <span className={`chat-bubble-name ${vipNameClass(chatProfile, vipNameVariant)}`} data-vip-name={displayName}>
                     {displayName}
                   </span>
                   {!isSystem && !isAnon && chatProfile && <UserBadges profile={chatProfile} compact showLevel={false} />}
                 </div>
                 <div className="chat-message-pill">
-                  <span className="chat-bubble-text">{displayText}</span>
-                  {messageTime && <span className="chat-message-time">{messageTime}</span>}
+                  <span className="chat-bubble-text">
+                    {displayText}
+                    {messageTime && <span className="chat-time-inline">{messageTime}</span>}
+                  </span>
                   {giftParts?.charm ? (
                     <span className="chat-bubble-charm">{giftParts.charm}</span>
                   ) : null}
@@ -3338,7 +3612,10 @@ function RoomContent({
           onEmoji={() => setEmojiOpen(true)}
           onGift={() => setGiftSheetOpen(true)}
           onChest={() => setDailyTasksOpen(true)}
-          onGrid={() => setFunctionsOpen(true)}
+          onGrid={() => {
+            if (inGameLayout) gamesUiRef.current?.openPicker?.();
+            else setFunctionsOpen(true);
+          }}
         />
       </div>
 
@@ -3375,10 +3652,6 @@ function RoomContent({
 
       {functionsOpen && (
         <FunctionsGrid
-          onDailyTasks={() => { setFunctionsOpen(false); setDailyTasksOpen(true); }}
-          onReactions={() => { setFunctionsOpen(false); setReactionOpen(true); }}
-          onMode={() => { setFunctionsOpen(false); setModeOpen(true); }}
-          onWaiting={() => { setFunctionsOpen(false); openWaitingQueue(); }}
           onRedPacket={() => {
             setFunctionsOpen(false);
             if (roomMeta.ban_red_packet) {
@@ -3387,11 +3660,91 @@ function RoomContent({
             }
             setRedPacketOpen(true);
           }}
+          onDraw={() => {
+            setFunctionsOpen(false);
+            gamesUiRef.current?.openPicker?.();
+          }}
+          onBigWinner={async () => {
+            setFunctionsOpen(false);
+            const pool = seatedUsers.filter((s) => s.user_id);
+            if (!pool.length) {
+              setToast("Seat players first for Big Winner");
+              return;
+            }
+            const winner = pool[Math.floor(Math.random() * pool.length)];
+            if (room?.id) {
+              await postSystemMessage(room.id, `🎉 Big Winner: ${winner.nickname || "Player"}!`);
+              await loadMessages(room.id);
+            }
+          }}
+          onBingo={() => {
+            setFunctionsOpen(false);
+            gamesUiRef.current?.openPicker?.();
+          }}
+          onLuckyNumber={() => {
+            setFunctionsOpen(false);
+            sendReaction({ key: "lucky", emoji: "🍀" });
+          }}
+          onBusinessLife={() => {
+            setFunctionsOpen(false);
+            setToast("Business Life — try room games or Shop cosmetics");
+          }}
+          onLottery={() => {
+            setFunctionsOpen(false);
+            sendReaction({ key: "lottery", emoji: "🎰" });
+          }}
+          onPk={() => {
+            setFunctionsOpen(false);
+            setPkOpen(true);
+          }}
+          onMusic={() => {
+            setFunctionsOpen(false);
+            setVideoAddOpen(true);
+          }}
+          onSoundEffect={() => {
+            setFunctionsOpen(false);
+            playRoomSoundEffect(roomMeta.gift_sound !== false);
+          }}
+          onOrder={() => {
+            setFunctionsOpen(false);
+            openWaitingQueue();
+          }}
+          onScoreboard={() => {
+            setFunctionsOpen(false);
+            setScoreboardOpen(true);
+          }}
           onImage={() => {
             setFunctionsOpen(false);
             imageInputRef.current?.click();
           }}
           onClose={() => setFunctionsOpen(false)}
+        />
+      )}
+
+      {scoreboardOpen && (
+        <ScoreboardSheet
+          scores={seatScores}
+          selected={scoreboardSelection}
+          canEdit={canModerate || isRoomOwner}
+          onToggleSeat={(num) => {
+            setScoreboardSelection((prev) =>
+              prev.includes(num) ? prev.filter((n) => n !== num) : [...prev, num],
+            );
+          }}
+          onAdjust={(delta) => {
+            if (!scoreboardSelection.length) {
+              setToast("Select seats on the scoreboard first");
+              return;
+            }
+            setSeatScores((prev) => {
+              const next = { ...prev };
+              for (const num of scoreboardSelection) {
+                next[num] = Math.max(0, Number(next[num] ?? 0) + delta);
+              }
+              return next;
+            });
+          }}
+          onClose={() => setScoreboardOpen(false)}
         />
       )}
 
@@ -3449,7 +3802,9 @@ function RoomContent({
             {
               label: voice?.micEnabled ? "Mute" : "Unmute",
               onClick: async () => {
+                const enabling = !voice?.micEnabled;
                 await voice?.toggleMic?.();
+                if (enabling) markGameTaskProgress(userId, "use_mic");
                 setSeatSheet(null);
               },
             },
@@ -3521,17 +3876,17 @@ function RoomContent({
       {dailyTasksOpen && (
         <DailyTaskSheet
           userId={userId}
-          isSeated={Boolean(mySeat)}
+          isSuperAdmin={isSuperAdmin}
+          context="room"
           onClose={() => setDailyTasksOpen(false)}
-          onReward={async (reward) => {
-            if (reward?.type === "gift") {
-              setGiftInventory(await loadGiftInventory(userId));
-              setToast(`Chest: ${reward.rarityLabel} ${reward.gift.emoji} ${reward.gift.name} x${reward.quantity}`);
-            } else {
-              const amount = Number(reward?.coins ?? reward ?? 0);
-              onCoinsChange(reward?.newBalance ?? coins + amount);
-              setToast(`Chest: +${formatCompactNumber(amount)} gold`);
-            }
+          onReward={(r) => {
+            if (r?.newBalance != null) onCoinsChange(r.newBalance);
+            const amount = Number(r?.rewards?.coins ?? 0);
+            setToast(amount ? `Claimed ${formatCompactNumber(amount)} gold` : "Task completed!");
+          }}
+          onNavigate={() => {
+            setDailyTasksOpen(false);
+            onMinimize?.();
           }}
         />
       )}
@@ -3544,11 +3899,93 @@ function RoomContent({
       )}
 
       {modeOpen && (
-        <RoomModeSheet
+        <RoomModeOverlay
           currentMode={roomMeta.room_mode ?? "normal"}
           canEdit={canChangeMode}
           onPick={handleModeChange}
           onClose={() => setModeOpen(false)}
+          functionsProps={{
+            onRedPacket: () => {
+              setModeOpen(false);
+              if (roomMeta.ban_red_packet) {
+                setToast("Red packets are banned in this room");
+                return;
+              }
+              setRedPacketOpen(true);
+            },
+            onDraw: () => {
+              setModeOpen(false);
+              gamesUiRef.current?.openPicker?.();
+            },
+            onBigWinner: async () => {
+              setModeOpen(false);
+              const pool = seatedUsers.filter((s) => s.user_id);
+              if (!pool.length) {
+                setToast("Seat players first for Big Winner");
+                return;
+              }
+              const winner = pool[Math.floor(Math.random() * pool.length)];
+              if (room?.id) {
+                await postSystemMessage(room.id, `🎉 Big Winner: ${winner.nickname || "Player"}!`);
+                await loadMessages(room.id);
+              }
+            },
+            onBingo: () => {
+              setModeOpen(false);
+              gamesUiRef.current?.openPicker?.();
+            },
+            onLuckyNumber: () => {
+              setModeOpen(false);
+              sendReaction({ key: "lucky", emoji: "🍀" });
+            },
+            onBusinessLife: () => {
+              setModeOpen(false);
+              setToast("Business Life — try room games or Shop cosmetics");
+            },
+            onLottery: () => {
+              setModeOpen(false);
+              sendReaction({ key: "lottery", emoji: "🎰" });
+            },
+            onPk: () => {
+              setModeOpen(false);
+              setPkOpen(true);
+            },
+            onMusic: () => {
+              setModeOpen(false);
+              setVideoAddOpen(true);
+            },
+            onSoundEffect: () => {
+              setModeOpen(false);
+              playRoomSoundEffect(roomMeta.gift_sound !== false);
+            },
+            onOrder: () => {
+              setModeOpen(false);
+              openWaitingQueue();
+            },
+            onScoreboard: () => {
+              setModeOpen(false);
+              setScoreboardOpen(true);
+            },
+            onImage: () => {
+              setModeOpen(false);
+              imageInputRef.current?.click();
+            },
+            onClose: () => setModeOpen(false),
+          }}
+        />
+      )}
+
+      {pkOpen && (
+        <PkBarSheet
+          onClose={() => setPkOpen(false)}
+          onToast={(msg) => setToast(msg)}
+          initialTeamA={pkBattle?.teamA ?? 0}
+          initialTeamB={pkBattle?.teamB ?? 0}
+          onReset={() => setPkBattle((prev) => (prev ? { ...prev, teamA: 0, teamB: 0 } : prev))}
+          onStart={({ teamA, teamB }) => {
+            setPkBattle({ active: true, teamA, teamB });
+            setPkOpen(false);
+          }}
         />
       )}
 
@@ -3694,8 +4131,12 @@ function RoomContent({
             setUserProfileSeat(null);
             setGiftSheetOpen(true);
           }}
-          onOpenIntimateSpace={() => {
-            openIntimateSpaceForUser(userProfileSeat.user_id);
+          onOpenIntimateSpace={(bond) => {
+            if (bond?.bondType && bond.status === "active") {
+              openIntimateSpaceForBond(bond);
+            } else {
+              openIntimateSpaceForUser(userProfileSeat.user_id);
+            }
             setUserProfileSeat(null);
           }}
           onOpenLoveHome={async () => {
@@ -3711,7 +4152,7 @@ function RoomContent({
               setUserProfileSeat(null);
               return;
             }
-            setPersonalChatFriend({
+            onOpenDirectChat?.({
               id: userProfileSeat.user_id,
               display_name: userProfileSeat.nickname || prof?.display_name,
               avatar_url: userProfileSeat.avatar_url || prof?.avatar_url,
@@ -3788,15 +4229,6 @@ function RoomContent({
         />
       )}
 
-      {personalChatFriend && (
-        <PersonalChat
-          userId={userId}
-          displayName={displayName}
-          friend={personalChatFriend}
-          onClose={() => setPersonalChatFriend(null)}
-        />
-      )}
-
       {emojiOpen && (
         <EmotePanel
           onClose={() => setEmojiOpen(false)}
@@ -3816,6 +4248,12 @@ function RoomContent({
           isSuperAdmin={isSuperAdmin}
           onDeleteRoom={handleDeleteRoomAsSuperAdmin}
           canAssignAdmins={isRoomOwner || isSuperAdmin}
+          isRoomOwner={isRoomOwner}
+          onOpenTransferHost={() => {
+            setSettingsOpen(false);
+            setTransferFromSettings(true);
+            setTransferHostOpen(true);
+          }}
           onOpenAdmins={() => {
             setSettingsOpen(false);
             setAdminFromSettings(true);
@@ -3840,6 +4278,22 @@ function RoomContent({
               setBlacklistFromSettings(false);
             }
           }}
+        />
+      )}
+
+      {transferHostOpen && isRoomOwner && (
+        <TransferHostSheet
+          roomId={roomMeta.id}
+          ownerId={userId}
+          onClose={() => {
+            setTransferHostOpen(false);
+            if (transferFromSettings) {
+              setSettingsOpen(true);
+              setTransferFromSettings(false);
+            }
+          }}
+          onTransferred={handleOwnershipTransferred}
+          onToast={setToast}
         />
       )}
 

@@ -62,3 +62,23 @@ export function areHorizontalSeatNeighbors(seatA, seatB) {
   }
   return false;
 }
+
+/** Partner-seat pair connectors (1-2, 3-4, …) when both seats in a row are occupied. */
+export function occupiedPartnerPairSignals(seats, partnerSeatEnabled = true) {
+  if (!partnerSeatEnabled || !seats?.length) return [];
+  const seatMap = Object.fromEntries(seats.map((s) => [s.seat_number, s]));
+  const taken = (n) => Boolean(seatMap[n]?.user_id);
+  const signals = [];
+
+  for (const row of SEAT_LAYOUT) {
+    for (let i = 0; i < row.length - 1; i += 1) {
+      const a = row[i];
+      const b = row[i + 1];
+      if (taken(a) && taken(b)) {
+        signals.push({ id: `partner-pair-${a}-${b}`, seatA: a, seatB: b, kind: "partner" });
+      }
+    }
+  }
+
+  return signals;
+}

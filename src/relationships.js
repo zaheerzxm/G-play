@@ -283,6 +283,72 @@ function normalizeBondRow(row, viewerId = null) {
 }
 
 export const PROTECT_COIN_OPTIONS = [100, 500, 1000];
+export const DAILY_PROTECT_POINTS = 40;
+
+function dailyProtectStorageKey(protectorId, targetId) {
+  const day = new Date().toISOString().slice(0, 10);
+  return `gplay_daily_protect_${protectorId}_${targetId}_${day}`;
+}
+
+export function hasDailyProtectedToday(protectorId, targetId) {
+  if (!protectorId || !targetId) return false;
+  try {
+    return Boolean(localStorage.getItem(dailyProtectStorageKey(protectorId, targetId)));
+  } catch {
+    return false;
+  }
+}
+
+/** Free daily protect — +40 guard points, once per day per pair. */
+export async function dailyProtectUser(protectorId, targetId) {
+  if (!supabase) throw new Error("Supabase is not configured");
+  if (!protectorId || !targetId || protectorId === targetId) {
+    throw new Error("Invalid users");
+  }
+
+  const { data, error } = await supabase.rpc("daily_protect_user", {
+    p_protector_id: protectorId,
+    p_target_id: targetId,
+  });
+
+  if (!error) {
+    try {
+      localStorage.setItem(dailyProtectStorageKey(protectorId, targetId), "1");
+    } catch {
+      /* ok */
+    }
+    return {
+      guardMine: Number(data?.guard_mine ?? 0),
+      guardTheirs: Number(data?.guard_theirs ?? 0),
+      pointsAdded: Number(data?.points_added ?? DAILY_PROTECT_POINTS),
+      guardApplied: true,
+    };
+  }
+
+  if (hasDailyProtectedToday(protectorId, targetId)) {
+    throw new Error("Already protected today — come back tomorrow");
+  }
+
+  const { data: fallback, error: fbErr } = await supabase.rpc("add_gift_guard_points", {
+    p_sender_id: protectorId,
+    p_recipient_id: targetId,
+    p_charm: DAILY_PROTECT_POINTS,
+  });
+  if (fbErr) throw fbErr;
+
+  try {
+    localStorage.setItem(dailyProtectStorageKey(protectorId, targetId), "1");
+  } catch {
+    /* ok */
+  }
+
+  return {
+    guardMine: Number(fallback?.guard_mine ?? 0),
+    guardTheirs: Number(fallback?.guard_theirs ?? 0),
+    pointsAdded: DAILY_PROTECT_POINTS,
+    guardApplied: true,
+  };
+}
 
 /** Spend coins to add guard (WePlay Protect). 1 coin = 1 guard point. */
 export async function protectUser(protectorId, targetId, coins) {
@@ -311,6 +377,83 @@ export function relationshipLevelProgress(exp) {
   const cur = (level - 1) * 3000;
   const next = level * 3000;
   return { level, cur, next, value, pct: Math.min(100, ((value - cur) / (next - cur)) * 100) };
+}
+
+/** Milestone timeline for Intimate Space (pair-specific). */
+export function bondTimelineEvents(bond) {
+  if (!bond) return [];
+  const meta = bondMeta(bond.bondType);
+  const progress = relationshipLevelProgress(bond.relationshipExp ?? 0);
+  const events = [];
+
+  if (bond.startedAt) {
+    events.push({
+      id: "started",
+      at: bond.startedAt,
+      title: `${meta.label} bond started`,
+      detail: "Your story begins",
+      icon: meta.emoji,
+    });
+  }
+
+  const dayMarks = [
+    { days: 7, title: "7 days together", detail: "First week milestone" },
+    { days: 30, title: "30 days together", detail: "One month strong" },
+    { days: 100, title: "100 days together", detail: "Century milestone" },
+    { days: 365, title: "1 year together", detail: "Anniversary" },
+  ];
+  const together = daysTogether(bond.startedAt);
+  for (const mark of dayMarks) {
+    if (together >= mark.days && bond.startedAt) {
+      const at = new Date(bond.startedAt);
+      at.setDate(at.getDate() + mark.days);
+      events.push({
+        id: `day-${mark.days}`,
+        at: at.toISOString(),
+        title: mark.title,
+        detail: mark.detail,
+        icon: "📅",
+      });
+    }
+  }
+
+  for (let lv = 2; lv <= progress.level; lv += 1) {
+    events.push({
+      id: `lv-${lv}`,
+      at: null,
+      title: `Intimacy LV.${lv}`,
+      detail: `${meta.label} level up`,
+      icon: "✨",
+    });
+  }
+
+  return events.sort((a, b) => {
+    if (!a.at && !b.at) return 0;
+    if (!a.at) return 1;
+    if (!b.at) return -1;
+    return new Date(b.at) - new Date(a.at);
+  });
+}
+
+/** Unlockable achievements for Intimate Space. */
+export function bondAchievements(bond) {
+  if (!bond) return [];
+  const meta = bondMeta(bond.bondType);
+  const progress = relationshipLevelProgress(bond.relationshipExp ?? 0);
+  const days = daysTogether(bond.startedAt);
+  const exp = Number(bond.relationshipExp ?? 0);
+
+  return [
+    { id: "bonded", label: "Bonded", desc: `Formed a ${meta.label} bond`, icon: meta.emoji, unlocked: true },
+    { id: "week", label: "Week one", desc: "7 days together", icon: "🌸", unlocked: days >= 7 },
+    { id: "month", label: "Monthly", desc: "30 days together", icon: "🗓️", unlocked: days >= 30 },
+    { id: "intimate3", label: "Close friends", desc: "Reach intimacy LV.3", icon: "💫", unlocked: progress.level >= 3 },
+    { id: "intimate5", label: "Soulmates", desc: "Reach intimacy LV.5", icon: "💖", unlocked: progress.level >= 5 },
+    { id: "tokens", label: "Token wall", desc: "Unlock 3 tokens", icon: "🎀", unlocked: progress.level >= 3 },
+    { id: "photos", label: "Memory lane", desc: "Unlock relationship photos", icon: "📷", unlocked: progress.level >= 2 },
+    { id: "gifter", label: "Generous heart", desc: "1,000+ intimacy points", icon: "🎁", unlocked: exp >= 1000 },
+    { id: "century", label: "100 days", desc: "100 days together", icon: "🏆", unlocked: days >= 100 },
+  ];
 }
 
 /** Gift charm also adds to sender's guard toward recipient (mutual friends only). */
@@ -401,6 +544,40 @@ export async function respondBondProposal(userId, otherUserId, accept) {
 export function partnerUserId(bond, viewerId) {
   if (!bond || !viewerId) return null;
   return String(bond.userA) === String(viewerId) ? bond.userB : bond.userA;
+}
+
+/** Guardians ranked by protection points toward targetUserId. */
+export async function loadGuardRankingForUser(targetUserId, limit = 50) {
+  if (!supabase || !targetUserId) return [];
+
+  const { data, error } = await supabase
+    .from("user_relationships")
+    .select("user_a, user_b, guard_a, guard_b")
+    .or(`user_a.eq.${targetUserId},user_b.eq.${targetUserId}`);
+
+  if (error) {
+    console.warn("loadGuardRankingForUser failed", error.message);
+    return [];
+  }
+
+  const guardians = [];
+  for (const row of data ?? []) {
+    const targetIsA = String(row.user_a) === String(targetUserId);
+    const guardianId = targetIsA ? row.user_b : row.user_a;
+    const points = targetIsA ? Number(row.guard_b ?? 0) : Number(row.guard_a ?? 0);
+    if (points > 0) guardians.push({ userId: guardianId, points });
+  }
+
+  guardians.sort((a, b) => b.points - a.points);
+  const top = guardians.slice(0, limit);
+  const profiles = await loadProfilesForUserIds(top.map((g) => g.userId));
+
+  return top.map((g, index) => ({
+    rank: index + 1,
+    userId: g.userId,
+    points: g.points,
+    profile: profiles[g.userId] ?? null,
+  }));
 }
 
 export async function loadActiveBondsForUser(userId) {

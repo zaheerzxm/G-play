@@ -13,18 +13,25 @@ export async function logGiftTransaction({
 }) {
   if (!supabase || !senderId || !recipientId || !gift) return null;
 
+  const qty = Math.max(1, Math.floor(Number(quantity) || 1));
+  const totalCost = Math.max(0, Math.floor(Number(cost) || 0));
+  const giftId = String(gift.id ?? "").trim() || `gift-${Date.now()}`;
+  const catalog = findGift(giftId);
+  const giftName = String(gift.name ?? catalog?.name ?? "Gift").trim() || "Gift";
+  const giftEmoji = gift.emoji ?? catalog?.emoji ?? "🎁";
+
   const { data, error } = await supabase
     .from("gift_transactions")
     .insert({
       sender_id: senderId,
       recipient_id: recipientId,
       room_id: roomId,
-      gift_id: gift.id,
-      gift_name: gift.name,
-      gift_emoji: gift.emoji ?? "🎁",
-      quantity,
-      cost,
-      charm,
+      gift_id: giftId,
+      gift_name: giftName,
+      gift_emoji: giftEmoji,
+      quantity: qty,
+      cost: totalCost,
+      charm: Math.max(0, Math.floor(Number(charm) || 0)),
     })
     .select()
     .single();
@@ -49,12 +56,15 @@ export async function loadGiftWall(userId) {
 
   const { data, error } = await supabase
     .from("gift_transactions")
-    .select("gift_id, gift_name, gift_emoji, quantity, cost")
+    .select("gift_id, gift_name, gift_emoji, quantity, cost, sender_id, created_at")
     .eq("recipient_id", userId)
     .order("created_at", { ascending: false })
     .limit(500);
 
   if (error) return { gifts: [], totalGifts: 0, totalStars: 0 };
+
+  const senderIds = [...new Set((data ?? []).map((r) => r.sender_id).filter(Boolean))];
+  const senderProfiles = senderIds.length ? await loadProfilesForUserIds(senderIds) : {};
 
   const map = {};
   let totalGifts = 0;
@@ -75,9 +85,19 @@ export async function loadGiftWall(userId) {
         quantity: 0,
         stars,
         catalog: findGift(row.gift_id),
+        top_sender: senderProfiles[row.sender_id] ?? null,
+        last_sent_at: row.created_at,
       };
     }
     map[key].quantity += qty;
+    if (row.created_at && (!map[key].last_sent_at || row.created_at > map[key].last_sent_at)) {
+      map[key].last_sent_at = row.created_at;
+      if (row.sender_id) {
+        map[key].top_sender = senderProfiles[row.sender_id] ?? map[key].top_sender;
+      }
+    } else if (!map[key].top_sender && row.sender_id) {
+      map[key].top_sender = senderProfiles[row.sender_id] ?? null;
+    }
   }
 
   const gifts = Object.values(map).sort((a, b) => b.quantity - a.quantity);
@@ -95,13 +115,24 @@ export async function loadReceivedGifts(userId, limit = 30) {
     .limit(limit);
 
   if (error) return [];
-  const senderIds = [...new Set((data ?? []).map((r) => r.sender_id))];
-  const profiles = await loadProfilesForUserIds(senderIds);
+  const ids = new Set();
+  for (const row of data ?? []) {
+    if (row.sender_id) ids.add(row.sender_id);
+    if (row.recipient_id) ids.add(row.recipient_id);
+  }
+  const profiles = await loadProfilesForUserIds([...ids]);
 
-  return (data ?? []).map((row) => ({
-    ...row,
-    sender: profiles[row.sender_id] ?? null,
-  }));
+  return (data ?? []).map((row) => {
+    const catalog = findGift(row.gift_id);
+    return {
+      ...row,
+      gift_name: row.gift_name || catalog?.name || "Gift",
+      gift_emoji: row.gift_emoji || catalog?.emoji || "🎁",
+      quantity: Math.max(1, Number(row.quantity) || 1),
+      sender: profiles[row.sender_id] ?? null,
+      recipient: profiles[row.recipient_id] ?? null,
+    };
+  });
 }
 
 /** Recent gifts exchanged between two users (Love Home feed). */

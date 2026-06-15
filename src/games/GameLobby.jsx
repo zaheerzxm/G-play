@@ -17,9 +17,11 @@ export default function GameLobby({
   const needTwoForDraw = selectedType === "draw" && joinedPlayers.length < 2;
   const needTwoForWordle = selectedType === "wordle" && joinedPlayers.length < 2;
   const isMafia = selectedType === "mafia";
+  const isDDD = selectedType === "ddd";
+  const isSupabaseGame = isMafia || isDDD;
   const canStart =
     canHost
-    && (isMafia || socketReady)
+    && (isSupabaseGame || socketReady)
     && selectedType
     && joinedPlayers.length >= 1
     && !needTwoForDraw
@@ -44,8 +46,8 @@ export default function GameLobby({
       </header>
 
       <p className="game-lobby-section-label">
-        {isMafia
-          ? "Mafia uses voice + Supabase — no game server needed"
+        {isSupabaseGame
+          ? "Uses voice + Supabase — no game server needed"
           : !socketReady
           ? "Game server not connected"
           : canHost
@@ -61,8 +63,8 @@ export default function GameLobby({
             key={game.id}
             type="button"
             className={`game-card ${selectedType === game.id ? "game-card--picked" : ""}`}
-            disabled={!canHost || gameInProgress || (!socketReady && game.id !== "mafia")}
-            onClick={() => canHost && !gameInProgress && (socketReady || game.id === "mafia") && onSelectGame(game.id)}
+            disabled={!canHost || gameInProgress || (!socketReady && game.id !== "mafia" && game.id !== "ddd")}
+            onClick={() => canHost && !gameInProgress && (socketReady || game.id === "mafia" || game.id === "ddd") && onSelectGame(game.id)}
           >
             <span className="game-card-emoji">{game.emoji}</span>
             <strong>{game.name}</strong>
@@ -91,10 +93,10 @@ export default function GameLobby({
             <button
               type="button"
               className="game-btn game-btn--primary game-btn--wide"
-              disabled={(!socketReady && !isMafia) || !selectedType}
+              disabled={(!socketReady && !isSupabaseGame) || !selectedType}
               onClick={onJoinGame}
             >
-              {!isMafia && !socketReady ? "Connecting…" : !selectedType ? "Waiting for game pick…" : "Join game"}
+              {!isSupabaseGame && !socketReady ? "Connecting…" : !selectedType ? "Waiting for game pick…" : "Join game"}
             </button>
           )}
           {!gameInProgress && joined && (
@@ -150,6 +152,11 @@ export default function GameLobby({
         {selectedType === "mafia" && (
           <p className="game-lobby-draw-hint">
             <strong>5–12 players</strong> — secret roles, night actions, day discussion on voice, then vote.
+          </p>
+        )}
+        {selectedType === "ddd" && (
+          <p className="game-lobby-draw-hint">
+            <strong>3–12 players</strong> — each turn pick who goes in ❤️ Dil, 🧠 Dimaag & 🗑️ Dustbin.
           </p>
         )}
       </div>

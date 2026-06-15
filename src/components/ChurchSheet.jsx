@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatCompactNumber } from "../formatCompact.js";
 import {
   GUARD_PROPOSE_CP,
@@ -9,6 +10,7 @@ import {
   scheduleWedding,
   WEDDING_RING_TYPES,
   WEDDING_TIME_SLOTS,
+  weddingCeremonyPhase,
 } from "../church.js";
 import { loadMutualFriends } from "../social.js";
 import {
@@ -19,9 +21,10 @@ import {
 } from "../relationships.js";
 import { loadProfilesForUserIds } from "../profile.js";
 import AvatarImg from "./AvatarImg.jsx";
+import { IconChurch, IconGuard, IconHeart, UiIcon } from "./NavIcons.jsx";
 
 const TABS = [
-  { key: "propose", label: "Propose" },
+  { key: "propose", label: "Church" },
   { key: "wedding", label: "Wedding" },
   { key: "divorce", label: "Divorce" },
 ];
@@ -41,6 +44,7 @@ export default function ChurchSheet({ userId, onClose, onToast }) {
   const [busy, setBusy] = useState(false);
   const [selectedRing, setSelectedRing] = useState("floral");
   const [selectedSlot, setSelectedSlot] = useState(WEDDING_TIME_SLOTS[2].hour);
+  const [selectedWedding, setSelectedWedding] = useState(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -88,33 +92,90 @@ export default function ChurchSheet({ userId, onClose, onToast }) {
 
   const coupleBond = myBond && (myBond.bondType === "cp" || myBond.bondType === "wedding");
 
-  return (
-    <div className="profile-card-backdrop church-backdrop" onClick={onClose}>
-      <div className="church-sheet" onClick={(e) => e.stopPropagation()}>
-        <header className="church-header">
-          <button type="button" className="church-back" onClick={onClose} aria-label="Back">
-            ←
+  if (selectedWedding) {
+    const ring = ringMeta(selectedWedding.ringType);
+    const inviteCard = (
+      <div className="gplay-mobile-shell-backdrop" onClick={() => setSelectedWedding(null)}>
+        <div className="church-wedding-invite-card" onClick={(e) => e.stopPropagation()}>
+          <button type="button" className="church-back" onClick={() => setSelectedWedding(null)} aria-label="Back">‹</button>
+          <div className="church-wedding-invite-hero">
+            <span className="church-wedding-invite-ring" aria-hidden>{ring.emoji}</span>
+            <h3>Wedding Invitation</h3>
+            <p className="church-wedding-invite-time">{formatSlotTime(selectedWedding.scheduledAt)}</p>
+          </div>
+          <div className="church-wedding-invite-couple">
+            <AvatarImg
+              src={selectedWedding.userA.avatar_url}
+              fallback={selectedWedding.userA.display_name}
+              className="church-wedding-invite-avatar"
+              imgClassName="church-wedding-invite-avatar"
+            />
+            <span className="church-wedding-invite-heart" aria-hidden>💕</span>
+            <AvatarImg
+              src={selectedWedding.userB.avatar_url}
+              fallback={selectedWedding.userB.display_name}
+              className="church-wedding-invite-avatar"
+              imgClassName="church-wedding-invite-avatar"
+            />
+          </div>
+          <p className="church-wedding-invite-names">
+            {selectedWedding.userA.display_name} & {selectedWedding.userB.display_name}
+          </p>
+          <p className="church-wedding-invite-ring-label">{ring.label ?? "Wedding ring"}</p>
+          <button type="button" className="primary-btn" onClick={() => onToast?.("RSVP saved — see you at the chapel!")}>
+            Accept invitation
           </button>
-          <h2>⛪ Church</h2>
+        </div>
+      </div>
+    );
+    return createPortal(inviteCard, document.body);
+  }
+
+  const sheet = (
+    <div className="gplay-mobile-shell-backdrop" onClick={onClose}>
+      <div className="gplay-mobile-shell church-sheet church-sheet--full" onClick={(e) => e.stopPropagation()}>
+        <header className="church-header church-header--full">
+          <button type="button" className="church-back" onClick={onClose} aria-label="Back">
+            ‹
+          </button>
+          <nav className="church-header-tabs" aria-label="Church sections">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={`church-header-tab ${tab === t.key ? "church-header-tab--active" : ""}`}
+                onClick={() => setTab(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          <button type="button" className="church-help" aria-label="Help">?</button>
         </header>
 
-        <div className="church-tabs">
-          {TABS.map((t) => (
+        {tab !== "divorce" && (
+          <div className="church-mode-ctas">
             <button
-              key={t.key}
               type="button"
-              className={tab === t.key ? "church-tab--active" : ""}
-              onClick={() => setTab(t.key)}
+              className={`church-mode-cta church-mode-cta--propose ${tab === "propose" ? "church-mode-cta--active" : ""}`}
+              onClick={() => setTab("propose")}
             >
-              {t.label}
+              Propose
             </button>
-          ))}
-        </div>
+            <button
+              type="button"
+              className={`church-mode-cta church-mode-cta--wedding ${tab === "wedding" ? "church-mode-cta--active" : ""}`}
+              onClick={() => setTab("wedding")}
+            >
+              Wedding
+            </button>
+          </div>
+        )}
 
         {tab === "propose" && (
           <div className="church-body">
             <div className="church-propose-card">
-              <span className="church-propose-art" aria-hidden>💕</span>
+              <UiIcon Icon={IconHeart} variant="lg" className="church-propose-art" />
               <h3>Propose to your special one</h3>
               <p>
                 Guard reaches {formatCompactNumber(GUARD_PROPOSE_CP)} → propose via Protect + Send Gift
@@ -145,7 +206,8 @@ export default function ChurchSheet({ userId, onClose, onToast }) {
                     <div className="church-member-meta">
                       <span className="church-member-name">{friend.display_name}</span>
                       <span className="church-member-guard">
-                        🛡️ {formatCompactNumber(friend.guardMine)} / {formatCompactNumber(GUARD_PROPOSE_CP)}
+                        <UiIcon Icon={IconGuard} className="church-member-guard-icon" />{" "}
+                        {formatCompactNumber(friend.guardMine)} / {formatCompactNumber(GUARD_PROPOSE_CP)}
                       </span>
                       {friend.activeBond && (
                         <span className="church-member-bond">{friend.activeBond}</span>
@@ -175,7 +237,7 @@ export default function ChurchSheet({ userId, onClose, onToast }) {
         {tab === "wedding" && (
           <div className="church-body">
             <div className="church-wedding-intro">
-              <span aria-hidden>💒</span>
+              <UiIcon Icon={IconChurch} variant="lg" className="church-wedding-intro-icon" />
               <p>Go propose to her/him, then schedule your wedding here.</p>
             </div>
 
@@ -209,24 +271,50 @@ export default function ChurchSheet({ userId, onClose, onToast }) {
 
             {mySchedule && (
               <div className="church-my-schedule">
-                <p>Your wedding: {formatSlotTime(mySchedule.scheduledAt)} · {ringMeta(mySchedule.ringType).emoji}</p>
+                {(() => {
+                  const phase = weddingCeremonyPhase(mySchedule.scheduledAt);
+                  return (
+                    <>
+                      <span className={`church-wedding-phase church-wedding-phase--${phase.status}`}>
+                        {phase.label}
+                      </span>
+                      <p>
+                        Your wedding: {formatSlotTime(mySchedule.scheduledAt)} · {ringMeta(mySchedule.ringType).emoji}
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
             )}
 
-            <p className="church-section-title">Today&apos;s Wedding</p>
+            <p className="church-section-title church-section-title--wedding">
+              Today&apos;s Wedding
+            </p>
             <ul className="church-wedding-list">
               {todaysWeddings.length === 0 && (
                 <li className="church-wedding-row church-wedding-row--empty">No weddings scheduled today</li>
               )}
               {todaysWeddings.map((w) => {
                 const ring = ringMeta(w.ringType);
+                const phase = weddingCeremonyPhase(w.scheduledAt);
                 return (
-                  <li key={w.id} className="church-wedding-row">
-                    <span className="church-wedding-time">{formatSlotTime(w.scheduledAt)}</span>
-                    <span className="church-wedding-ring">{ring.emoji}</span>
-                    <span className="church-wedding-names">
-                      {w.userA.display_name} & {w.userB.display_name}
-                    </span>
+                  <li key={w.id}>
+                    <button
+                      type="button"
+                      className="church-wedding-row church-wedding-row--btn"
+                      onClick={() => setSelectedWedding(w)}
+                    >
+                      <span className="church-wedding-row-time">{formatSlotTime(w.scheduledAt)}</span>
+                      <span className="church-wedding-row-names">
+                        {w.userA.display_name} & {w.userB.display_name}
+                      </span>
+                      <span className="church-wedding-row-ring" aria-hidden>{ring.emoji}</span>
+                      {phase.label && (
+                        <span className={`church-wedding-phase church-wedding-phase--${phase.status}`}>
+                          {phase.label}
+                        </span>
+                      )}
+                    </button>
                   </li>
                 );
               })}
@@ -256,4 +344,6 @@ export default function ChurchSheet({ userId, onClose, onToast }) {
       </div>
     </div>
   );
+
+  return createPortal(sheet, document.body);
 }

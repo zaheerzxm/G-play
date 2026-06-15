@@ -271,6 +271,55 @@ export async function createRedPacketRain({ roomId, senderId, totalCoins, dropCo
   return { packet, envelopeCount: envelopes };
 }
 
+/** One-to-one DM red packet — recipient opens for full amount. Requires supabase/dm-red-packet.sql. */
+export async function createDmRedPacket({ senderId, recipientId, totalCoins }) {
+  if (!supabase) throw new Error("Supabase is not configured");
+  if (!senderId || !recipientId) throw new Error("Missing sender or recipient");
+  if (senderId === recipientId) throw new Error("Cannot send a red packet to yourself");
+
+  const total = Math.max(RED_PACKET_MIN_COINS, Math.floor(Number(totalCoins) || 0));
+
+  const { data: packet, error: packetErr } = await supabase
+    .from("red_packets")
+    .insert({
+      room_id: null,
+      recipient_id: recipientId,
+      sender_id: senderId,
+      total_coins: total,
+      claims_left: 1,
+    })
+    .select()
+    .single();
+
+  if (packetErr) {
+    if (/room_id|not-null|null value|recipient_id|column/i.test(packetErr.message ?? "")) {
+      throw new Error("DM red packets need supabase/dm-red-packet.sql run in Supabase first");
+    }
+    throw new Error(packetErr.message || "Could not create red packet");
+  }
+
+  return { packet };
+}
+
+/** Open a DM red packet — only the intended recipient may claim. */
+export async function claimDmRedPacket(packetId, userId) {
+  if (!supabase || !packetId || !userId) throw new Error("Invalid claim");
+
+  const { data: packet, error: fetchErr } = await supabase
+    .from("red_packets")
+    .select("*")
+    .eq("id", packetId)
+    .maybeSingle();
+  if (fetchErr) throw fetchErr;
+  if (!packet) throw new Error("Red packet expired");
+  if (packet.recipient_id && packet.recipient_id !== userId) {
+    throw new Error("This red packet is not for you");
+  }
+  if (packet.claims_left <= 0) throw new Error("Already opened");
+
+  return claimRedPacket(packetId, userId);
+}
+
 /** Mark an envelope grabbed — coins paid out when the round settles. */
 export async function claimRedPacketDrop(packetId, dropIndex, userId) {
   if (!supabase || !packetId || !userId) throw new Error("Invalid claim");
@@ -379,6 +428,9 @@ export async function claimRedPacket(packetId, userId) {
     .maybeSingle();
   if (fetchErr) throw fetchErr;
   if (!packet) throw new Error("Red packet expired");
+  if (packet.recipient_id && packet.recipient_id !== userId) {
+    throw new Error("This red packet is not for you");
+  }
   if (packet.claims_left <= 0) throw new Error("All claims taken");
 
   const { data: existing } = await supabase

@@ -44,7 +44,10 @@ Set these function secrets in Supabase:
 ```text
 LIVEKIT_API_KEY
 LIVEKIT_API_SECRET
+LIVEKIT_URL=wss://your-project.livekit.cloud
 ```
+
+`LIVEKIT_URL` in secrets is returned to the app with the token so URL and keys always match. Also set the same URL in `VITE_LIVEKIT_URL` for the frontend build.
 
 ## Run
 

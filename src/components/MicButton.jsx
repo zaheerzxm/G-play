@@ -2,11 +2,46 @@ import { useVoice } from "../context/VoiceContext.jsx";
 
 export default function MicButton() {
   const voice = useVoice();
+  if (!voice) return null;
 
-  if (!voice?.voiceReady) return null;
+  const {
+    voiceReady,
+    voiceStatus,
+    voiceError,
+    micError,
+    isSeated,
+    micEnabled,
+    seatMicAllowed,
+    toggleMic,
+    retryConnect,
+  } = voice;
 
-  const { isSeated, micEnabled, seatMicAllowed, toggleMic } = voice;
+  if (!voiceReady) {
+    const hint = voiceError
+      || (voiceStatus === "connecting" ? "Connecting voice…" : "Voice unavailable — tap to retry");
+    return (
+      <button
+        type="button"
+        className="mic-btn dock-mic-btn mic-btn--muted"
+        disabled={voiceStatus === "connecting"}
+        onClick={() => retryConnect?.()}
+        aria-label={hint}
+        title={hint}
+      >
+        <span className="dock-mic-icon" aria-hidden />
+      </button>
+    );
+  }
+
   const canUseMic = isSeated && seatMicAllowed !== false;
+  const hint = micError
+    || (!isSeated
+      ? "Take a seat"
+      : !canUseMic
+        ? "Seat muted"
+        : micEnabled
+          ? "Mic on"
+          : "Mic off");
 
   return (
     <button
@@ -23,9 +58,7 @@ export default function MicButton() {
               ? "Mute microphone"
               : "Unmute microphone"
       }
-      title={
-        !isSeated ? "Take a seat" : !canUseMic ? "Seat muted" : micEnabled ? "Mic on" : "Mic off"
-      }
+      title={hint}
     >
       <span className="dock-mic-icon" aria-hidden />
     </button>

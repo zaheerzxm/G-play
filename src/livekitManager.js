@@ -30,16 +30,54 @@ export class LiveKitConnectionManager {
     this._walkieTrack = null;
     this._walkieTargetIdentity = null;
     this._walkieRestoreMic = false;
+    this._ignoredIncomingWalkie = new Set();
+    this._audioUnlocked = false;
+    this._pendingAudioAttachments = [];
     this.onWalkieStateChange = null;
+    this.onAudioUnlockChange = null;
   }
 
-  _isLiveWalkieIncomingPublication(pub, localId) {
+  get isAudioUnlocked() {
+    return this._audioUnlocked;
+  }
+
+  _isLiveWalkieIncomingPublication(pub, localId, participantIdentity) {
     if (!pub?.track) return false;
     const target = this._walkieTargetFromPublication(pub);
     if (target !== localId) return false;
+    if (participantIdentity && this._ignoredIncomingWalkie.has(participantIdentity)) return false;
+    if (pub.isSubscribed === false) return false;
+    if (pub.isMuted) return false;
     const mst = pub.track.mediaStreamTrack;
-    if (mst?.readyState === "ended") return false;
+    if (!mst || mst.readyState === "ended") return false;
+    if (pub.track.isMuted) return false;
     return true;
+  }
+
+  async _unsubscribeIncomingWalkieFrom(participantIdentity) {
+    const localId = this.room.localParticipant?.identity;
+    if (!localId || !participantIdentity) return;
+
+    const participant = this.room.remoteParticipants.get(participantIdentity);
+    if (!participant) return;
+
+    for (const pub of participant.audioTrackPublications.values()) {
+      if (this._walkieTargetFromPublication(pub) !== localId) continue;
+      const track = pub.track;
+      if (track) {
+        this._unregisterRemoteAudioTrack(track);
+        try {
+          track.detach().forEach((el) => el.remove());
+        } catch {
+          /* ok */
+        }
+      }
+      try {
+        await pub.setSubscribed(false);
+      } catch {
+        /* ok */
+      }
+    }
   }
 
   _getWalkieState() {
@@ -54,7 +92,7 @@ export class LiveKitConnectionManager {
 
     for (const participant of this.room.remoteParticipants.values()) {
       for (const pub of participant.audioTrackPublications.values()) {
-        if (!this._isLiveWalkieIncomingPublication(pub, localId)) continue;
+        if (!this._isLiveWalkieIncomingPublication(pub, localId, participant.identity)) continue;
         incomingFromId = participant.identity;
         break;
       }
@@ -134,11 +172,23 @@ export class LiveKitConnectionManager {
     return walkieTarget === this.room.localParticipant?.identity;
   }
 
-  _attachRemoteAudioTrack(track, publication, participant) {
-    if (!track || track.kind !== Track.Kind.Audio) return null;
-    if (!this._shouldAttachRemoteAudioTrack(publication, participant)) return null;
-    this._registerRemoteAudioTrack(track);
+  _queueRemoteAudioTrack(track, publication, participant) {
+    if (this._pendingAudioAttachments.some((entry) => entry.track === track)) return;
+    this._pendingAudioAttachments.push({ track, publication, participant });
+  }
 
+  _removePendingAudioTrack(track) {
+    this._pendingAudioAttachments = this._pendingAudioAttachments.filter((entry) => entry.track !== track);
+  }
+
+  _flushPendingAudioAttachments() {
+    const pending = this._pendingAudioAttachments.splice(0);
+    for (const { track, publication, participant } of pending) {
+      this._doAttachRemoteAudioTrack(track, publication, participant);
+    }
+  }
+
+  _doAttachRemoteAudioTrack(track, publication, participant) {
     const existing = this.trackElements.get(track);
     if (existing?.isConnected) return existing;
     if (existing) {
@@ -157,6 +207,19 @@ export class LiveKitConnectionManager {
     this.trackElements.set(track, el);
     this.audioElements.push(el);
     return el;
+  }
+
+  _attachRemoteAudioTrack(track, publication, participant) {
+    if (!track || track.kind !== Track.Kind.Audio) return null;
+    if (!this._shouldAttachRemoteAudioTrack(publication, participant)) return null;
+    this._registerRemoteAudioTrack(track);
+
+    if (!this._audioUnlocked) {
+      this._queueRemoteAudioTrack(track, publication, participant);
+      return null;
+    }
+
+    return this._doAttachRemoteAudioTrack(track, publication, participant);
   }
 
   _syncExistingRemoteAudio() {
@@ -234,59 +297,124 @@ export class LiveKitConnectionManager {
     this._cleanup.push(() => clearInterval(this._speakingTimer));
   }
 
-  _watchAudioTracks() {
-    const syncWalkieFromRemoteAudio = (publication, participant) => {
-      if (publication?.kind !== Track.Kind.Audio) return;
-      if (participant?.isLocal) return;
-      this._emitWalkieState();
-    };
+  _detachWalkieRemoteAudio() {
+    const localId = this.room.localParticipant?.identity;
+    if (!localId) return;
 
+    for (const participant of this.room.remoteParticipants.values()) {
+      for (const pub of participant.audioTrackPublications.values()) {
+        if (!this._walkieTargetFromPublication(pub)) continue;
+        if (this._walkieTargetFromPublication(pub) !== localId) continue;
+        const track = pub.track;
+        if (!track) continue;
+        this._unregisterRemoteAudioTrack(track);
+        try {
+          track.detach().forEach((el) => el.remove());
+        } catch {
+          /* ok */
+        }
+      }
+    }
+  }
+
+  _isIncomingWalkiePublication(publication, participant) {
+    const localId = this.room.localParticipant?.identity;
+    if (!localId || participant?.isLocal) return false;
+    return this._walkieTargetFromPublication(publication) === localId;
+  }
+
+  _onIncomingWalkiePublished(publication, participant) {
+    if (publication?.kind !== Track.Kind.Audio) return;
+    if (!this._isIncomingWalkiePublication(publication, participant)) return;
+    // New publish = fresh session; clear dismiss so the overlay can show again.
+    this._ignoredIncomingWalkie.delete(participant.identity);
+    this._emitWalkieState();
+  }
+
+  _onIncomingWalkieEnded(publication, participant) {
+    if (!this._isIncomingWalkiePublication(publication, participant)) return;
+    const track = publication.track;
+    if (track) {
+      this._unregisterRemoteAudioTrack(track);
+      try {
+        track.detach().forEach((el) => el.remove());
+      } catch {
+        /* ok */
+      }
+    }
+    try {
+      publication.setSubscribed?.(false);
+    } catch {
+      /* ok */
+    }
+    this._emitWalkieState();
+  }
+
+  _watchAudioTracks() {
     const onSubscribed = async (track, publication, participant) => {
       if (track.kind !== Track.Kind.Audio) return;
       if (participant?.isLocal) return;
       if (participant?.identity === this.room.localParticipant?.identity) return;
 
       this._attachRemoteAudioTrack(track, publication, participant);
-      await this.recoverAudio();
-      syncWalkieFromRemoteAudio(publication, participant);
+      if (this._audioUnlocked) {
+        await this.recoverAudio();
+      }
+      this._emitWalkieState();
     };
 
     const onUnsubscribed = (track, publication, participant) => {
       if (track.kind !== Track.Kind.Audio) return;
       if (participant?.isLocal) return;
+      this._removePendingAudioTrack(track);
       this._unregisterRemoteAudioTrack(track);
       track.detach().forEach((el) => {
         el.remove();
         this.audioElements = this.audioElements.filter((node) => node !== el);
         if (this.trackElements.get(track) === el) this.trackElements.delete(track);
       });
-      syncWalkieFromRemoteAudio(publication, participant);
+      this._onIncomingWalkieEnded(publication, participant);
     };
 
     const onPublished = (publication, participant) => {
-      syncWalkieFromRemoteAudio(publication, participant);
+      this._onIncomingWalkiePublished(publication, participant);
     };
 
     const onUnpublished = (publication, participant) => {
-      syncWalkieFromRemoteAudio(publication, participant);
+      this._onIncomingWalkieEnded(publication, participant);
+    };
+
+    const onParticipantDisconnected = () => {
+      this._emitWalkieState();
     };
 
     this.room.on(RoomEvent.TrackSubscribed, onSubscribed);
     this.room.on(RoomEvent.TrackUnsubscribed, onUnsubscribed);
     this.room.on(RoomEvent.TrackPublished, onPublished);
     this.room.on(RoomEvent.TrackUnpublished, onUnpublished);
+    this.room.on(RoomEvent.ParticipantDisconnected, onParticipantDisconnected);
     this._cleanup.push(() => {
       this.room.off(RoomEvent.TrackSubscribed, onSubscribed);
       this.room.off(RoomEvent.TrackUnsubscribed, onUnsubscribed);
       this.room.off(RoomEvent.TrackPublished, onPublished);
       this.room.off(RoomEvent.TrackUnpublished, onUnpublished);
+      this.room.off(RoomEvent.ParticipantDisconnected, onParticipantDisconnected);
     });
+  }
+
+  _watchWalkieSync() {
+    const tick = () => {
+      if (this.connected) this._emitWalkieState();
+    };
+    this._walkieSyncTimer = setInterval(tick, 500);
+    this._cleanup.push(() => clearInterval(this._walkieSyncTimer));
   }
 
   async connect(serverUrl, token) {
     this._teardown();
     this._watchAudioTracks();
     this._watchSpeaking();
+    this._watchWalkieSync();
 
     const onDisconnected = () => {
       this._emitWalkieState();
@@ -297,7 +425,15 @@ export class LiveKitConnectionManager {
 
     await this.room.connect(serverUrl, token, { autoSubscribe: true });
     this._emitStatus("connected");
-    await this.recoverAudio();
+  }
+
+  async unlockAudioFromGesture() {
+    if (!this.connected) return false;
+    if (!this._audioUnlocked) {
+      this._audioUnlocked = true;
+      this.onAudioUnlockChange?.(true);
+    }
+    return this.recoverAudio();
   }
 
   async recoverAudio() {
@@ -306,7 +442,10 @@ export class LiveKitConnectionManager {
     this._syncExistingRemoteAudio();
     this._emitWalkieState();
     this._applySpeakerState();
-    if (!this._speakerEnabled) return true;
+
+    if (!this._audioUnlocked || !this._speakerEnabled) return this._audioUnlocked;
+
+    this._flushPendingAudioAttachments();
 
     try {
       await this.room.startAudio();
@@ -386,7 +525,7 @@ export class LiveKitConnectionManager {
     if (!this.connected || !targetIdentity) return false;
     if (targetIdentity === this.room.localParticipant?.identity) return false;
 
-    await this.stopWalkieTalk({ restoreMic: false });
+    await this.stopWalkieTalk({ restoreMic: false, dismissIncoming: false });
     this._walkieTargetIdentity = targetIdentity;
     this._walkieRestoreMic = this._isSeated && this._micEnabled;
 
@@ -415,7 +554,8 @@ export class LiveKitConnectionManager {
     }
   }
 
-  async stopWalkieTalk({ restoreMic = true } = {}) {
+  async stopWalkieTalk({ restoreMic = true, dismissIncoming = true } = {}) {
+    const incomingBefore = this._getWalkieState().incomingFromId;
     const track = this._walkieTrack;
     const shouldRestoreMic = restoreMic && this._walkieRestoreMic && this._isSeated;
     this._walkieTrack = null;
@@ -432,6 +572,12 @@ export class LiveKitConnectionManager {
           /* ok */
         }
       }
+    }
+
+    if (dismissIncoming && incomingBefore) {
+      this._ignoredIncomingWalkie.add(incomingBefore);
+      await this._unsubscribeIncomingWalkieFrom(incomingBefore);
+      this._detachWalkieRemoteAudio();
     }
 
     if (shouldRestoreMic && this.connected) {
@@ -458,17 +604,22 @@ export class LiveKitConnectionManager {
     this.audioElements = [];
     this.trackElements.clear();
     this.remoteAudioTracks.clear();
+    this._ignoredIncomingWalkie.clear();
+    this._pendingAudioAttachments = [];
     this._micEnabled = false;
     this._speakerEnabled = true;
+    if (this._audioUnlocked) {
+      this._audioUnlocked = false;
+      this.onAudioUnlockChange?.(false);
+    }
   }
 }
 
-/** Connect once per room. Mic publish is toggled client-side when seated. */
+/** Connect once per room. Seat/mic permission is applied in VoiceRoom after voiceReady. */
 export async function connectToVoiceRoom(manager, {
   roomName,
   participantName,
   participantIdentity,
-  isSeated,
   serverUrl,
 }) {
   const { token, url } = await fetchLiveKitToken({
@@ -479,12 +630,10 @@ export async function connectToVoiceRoom(manager, {
   });
 
   if (manager.connected) {
-    await manager.applySeatState(isSeated);
     return { token, url: url || serverUrl };
   }
 
   await manager.connect(url || serverUrl, token);
-  await manager.applySeatState(isSeated);
 
   return { token, url: url || serverUrl };
 }

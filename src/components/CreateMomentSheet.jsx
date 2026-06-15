@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { markGameTaskProgress } from "../gameTasks.js";
 import { createMoment, updateMoment, uploadSpotlightPhoto } from "../moments.js";
 
 export default function CreateMomentSheet({ userId, displayName, onClose, onPosted, moment = null }) {
@@ -8,6 +9,9 @@ export default function CreateMomentSheet({ userId, displayName, onClose, onPost
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(moment?.image_url ?? "");
   const [showUrlField, setShowUrlField] = useState(false);
+  const [pollMode, setPollMode] = useState(false);
+  const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [pollDays, setPollDays] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -19,7 +23,8 @@ export default function CreateMomentSheet({ userId, displayName, onClose, onPost
   }, [imageFile]);
 
   const hasPhoto = Boolean(imageFile || imageUrl.trim() || (isEdit && moment?.image_url && !imageFile));
-  const canSubmit = content.trim() || hasPhoto;
+  const pollValid = pollMode && pollOptions.filter((o) => o.trim()).length >= 2;
+  const canSubmit = content.trim() || hasPhoto || pollValid;
 
   function handlePickFile(e) {
     const file = e.target.files?.[0] ?? null;
@@ -61,7 +66,13 @@ export default function CreateMomentSheet({ userId, displayName, onClose, onPost
       if (isEdit) {
         await updateMoment(userId, moment.id, payload);
       } else {
-        await createMoment(userId, payload);
+        await createMoment(userId, {
+          ...payload,
+          poll: pollValid
+            ? { options: pollOptions.map((o) => o.trim()).filter(Boolean), days: pollDays }
+            : null,
+        });
+        markGameTaskProgress(userId, "spotlight_post");
       }
       onPosted?.();
       onClose?.();
@@ -122,6 +133,50 @@ export default function CreateMomentSheet({ userId, displayName, onClose, onPost
             onChange={(e) => setContent(e.target.value)}
             maxLength={500}
           />
+
+          <button
+            type="button"
+            className="create-moment-poll-toggle"
+            onClick={() => setPollMode((v) => !v)}
+          >
+            {pollMode ? "Remove poll" : "Add poll"}
+          </button>
+
+          {pollMode && (
+            <div className="create-moment-poll">
+              <label className="create-moment-poll-duration">
+                <span>Voting duration</span>
+                <select value={pollDays} onChange={(e) => setPollDays(Number(e.target.value))}>
+                  <option value={1}>1 day</option>
+                  <option value={3}>3 days</option>
+                  <option value={7}>7 days</option>
+                </select>
+              </label>
+              {pollOptions.map((opt, i) => (
+                <input
+                  key={`poll-${i}`}
+                  type="text"
+                  placeholder={`Option ${i + 1}`}
+                  value={opt}
+                  maxLength={80}
+                  onChange={(e) => {
+                    const next = [...pollOptions];
+                    next[i] = e.target.value;
+                    setPollOptions(next);
+                  }}
+                />
+              ))}
+              {pollOptions.length < 6 && (
+                <button
+                  type="button"
+                  className="create-moment-poll-add"
+                  onClick={() => setPollOptions((opts) => [...opts, ""])}
+                >
+                  + Add option
+                </button>
+              )}
+            </div>
+          )}
 
           <button
             type="button"

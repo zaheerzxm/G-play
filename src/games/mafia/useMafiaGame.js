@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createMafiaGame,
+  endActiveMafiaGameForRoom,
   endMafiaGame,
   fetchActiveMafiaGame,
   fetchGameReveal,
@@ -13,6 +14,7 @@ import {
   startMafiaGame,
 } from "./mafiaApi.js";
 import { useMafiaRealtime } from "./useMafiaRealtime.js";
+import { canControlRoomGame, isGameTimerDriver } from "../gameRoomControl.js";
 
 export function useMafiaGame({
   roomId,
@@ -21,6 +23,7 @@ export function useMafiaGame({
   avatarUrl,
   seatNumber,
   canHost,
+  roomControlContext,
   roomGameId,
 }) {
   const [gameId, setGameId] = useState(null);
@@ -29,6 +32,15 @@ export function useMafiaGame({
   const [reveal, setReveal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [joined, setJoined] = useState(false);
+  const [tabVisible, setTabVisible] = useState(
+    () => typeof document === "undefined" || !document.hidden,
+  );
+
+  useEffect(() => {
+    const sync = () => setTabVisible(!document.hidden);
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
+  }, []);
 
   const refresh = useCallback(async (overrideGameId) => {
     if (!roomId) return;
@@ -48,6 +60,14 @@ export function useMafiaGame({
       fetchPublicState(id),
       fetchPrivateState(id),
     ]);
+    if (pub?.game?.status === "cancelled") {
+      setGameId(null);
+      setPublicState(null);
+      setPrivateState(null);
+      setJoined(false);
+      setReveal(null);
+      return;
+    }
     setPublicState(pub);
     setPrivateState(priv);
     const players = pub?.players ?? [];
@@ -84,21 +104,42 @@ export function useMafiaGame({
     refresh(roomGameId).catch(() => {});
   }, [roomGameId, refresh]);
 
-  useMafiaRealtime(gameId, () => {
-    refresh().catch(() => {});
-  });
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
+  const onRealtimeChange = useCallback(() => {
+    refreshRef.current?.().catch(() => {});
+  }, []);
+
+  const realtimeConnected = useMafiaRealtime(gameId, onRealtimeChange);
 
   useEffect(() => {
     if (gameId) refresh().catch(() => {});
   }, [gameId, refresh]);
 
+  // Fallback poll only when Realtime is not connected.
   useEffect(() => {
-    if (!gameId || publicState?.game?.status !== "lobby") return undefined;
-    const poll = setInterval(() => {
-      refresh().catch(() => {});
-    }, 3000);
-    return () => clearInterval(poll);
-  }, [gameId, publicState?.game?.status, refresh]);
+    if (!gameId || realtimeConnected) return undefined;
+    const poll = () => {
+      if (document.hidden) return;
+      refreshRef.current?.().catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 2000);
+    return () => clearInterval(id);
+  }, [gameId, realtimeConnected]);
+
+  // Re-sync when user returns to the tab.
+  useEffect(() => {
+    if (!gameId) return undefined;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshRef.current?.().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [gameId]);
 
   const selectMafia = useCallback(async (settings) => {
     const id = await createMafiaGame(roomId, { ...settings, nickname: userName });
@@ -147,7 +188,11 @@ export function useMafiaGame({
       setReveal(null);
       return;
     }
-    await endMafiaGame(id);
+    try {
+      await endMafiaGame(id);
+    } catch {
+      await endActiveMafiaGameForRoom(roomId);
+    }
     setGameId(null);
     setPublicState(null);
     setPrivateState(null);
@@ -167,9 +212,19 @@ export function useMafiaGame({
   const voteCounts = publicState?.voteCounts ?? [];
   const isHost = String(game?.host_id) === String(userId)
     || Boolean(players.find((p) => String(p.user_id) === String(userId))?.is_host);
+  const canManage = roomControlContext
+    ? canControlRoomGame(userId, roomControlContext, game)
+    : Boolean(isHost || canHost);
+  const isTimerDriver = isGameTimerDriver({
+    localUserId: userId,
+    tabVisible,
+    game,
+    players,
+    roomContext: roomControlContext,
+  });
   const inLobby = game?.status === "lobby";
   const inProgress = game?.status === "active";
-  const isOver = game?.phase === "game_over" || game?.status === "ended";
+  const isOver = game?.phase === "game_over" || game?.status === "ended" || game?.status === "cancelled";
 
   return {
     gameId,
@@ -182,7 +237,8 @@ export function useMafiaGame({
     loading,
     joined,
     isHost,
-    canManage: Boolean(isHost || canHost),
+    canManage,
+    isTimerDriver,
     inLobby,
     inProgress,
     isOver,

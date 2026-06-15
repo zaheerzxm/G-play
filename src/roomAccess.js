@@ -3,10 +3,15 @@ import {
   getKickRemainingMs,
   isUserBlacklisted,
 } from "./roomAdmin.js";
+import {
+  hasUnlockedRoom,
+  isRoomPasswordProtected,
+  verifyRoomPassword,
+} from "./roomPassword.js";
 import { isBlockedEitherWay } from "./userBlocks.js";
 
-/** Whether viewer may enter a room (blacklist, kick cooldown, personal block vs owner). */
-export async function checkRoomEntry(viewerId, room) {
+/** Whether viewer may enter a room (blacklist, kick cooldown, personal block vs owner, password). */
+export async function checkRoomEntry(viewerId, room, { password } = {}) {
   if (!room?.id) return { ok: false, reason: "Room not found" };
 
   if (viewerId && room.owner_id && viewerId === room.owner_id) {
@@ -32,6 +37,15 @@ export async function checkRoomEntry(viewerId, room) {
         ok: false,
         reason: "You can't enter this room because of a personal block",
       };
+    }
+
+    if (isRoomPasswordProtected(room) && !hasUnlockedRoom(room.id)) {
+      if (!password) {
+        return { ok: false, reason: "password_required", needsPassword: true };
+      }
+      if (!verifyRoomPassword(room, password)) {
+        return { ok: false, reason: "Incorrect room password" };
+      }
     }
   }
 

@@ -13,8 +13,8 @@ export default function AddVideoSheet({ busy, onSubmit, onClose }) {
   return createPortal(
     <div className="add-video-backdrop" onClick={onClose}>
       <div className="add-video-sheet" onClick={(e) => e.stopPropagation()}>
-        <h3>Add a YouTube video</h3>
-        <p>Paste a YouTube link — everyone in the room will watch together.</p>
+        <h3>YouTube</h3>
+        <p>Everyone in the room will watch together.</p>
         <form onSubmit={handleSubmit}>
           <input
             type="url"
@@ -25,6 +25,21 @@ export default function AddVideoSheet({ busy, onSubmit, onClose }) {
             autoFocus
             disabled={busy}
           />
+          <button
+            type="button"
+            className="add-video-paste"
+            disabled={busy}
+            onClick={async () => {
+              try {
+                const text = await navigator.clipboard.readText();
+                if (text?.trim()) setUrl(text.trim());
+              } catch {
+                /* clipboard denied */
+              }
+            }}
+          >
+            Paste URL
+          </button>
           <div className="add-video-actions">
             <button type="button" className="add-video-cancel" onClick={onClose} disabled={busy}>
               Cancel

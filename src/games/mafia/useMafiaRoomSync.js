@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { isConfigured, supabase } from "../../supabase.js";
 import { fetchActiveMafiaGame } from "./mafiaApi.js";
 
+const FALLBACK_POLL_MS = 2000;
+
 /** Detect an active Mafia lobby/game in this voice room (all clients, no socket required). */
 export function useMafiaRoomSync(roomId, active) {
   const [gameId, setGameId] = useState(null);
@@ -13,6 +15,8 @@ export function useMafiaRoomSync(roomId, active) {
     }
 
     let cancelled = false;
+    let pollTimer = null;
+    let realtimeLive = false;
 
     const sync = async () => {
       try {
@@ -23,13 +27,36 @@ export function useMafiaRoomSync(roomId, active) {
       }
     };
 
+    const stopFallbackPoll = () => {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
+
+    const startFallbackPoll = () => {
+      if (pollTimer) return;
+      pollTimer = setInterval(() => {
+        if (document.hidden) return;
+        sync();
+      }, FALLBACK_POLL_MS);
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !realtimeLive) {
+        sync();
+      }
+    };
+
     sync();
-    const poll = setInterval(sync, 2500);
+    startFallbackPoll();
+    document.addEventListener("visibilitychange", onVisible);
 
     if (!supabase) {
       return () => {
         cancelled = true;
-        clearInterval(poll);
+        stopFallbackPoll();
+        document.removeEventListener("visibilitychange", onVisible);
       };
     }
 
@@ -40,11 +67,20 @@ export function useMafiaRoomSync(roomId, active) {
         { event: "*", schema: "public", table: "mafia_games", filter: `room_id=eq.${roomId}` },
         () => { sync(); },
       )
-      .subscribe();
+      .subscribe((status) => {
+        realtimeLive = status === "SUBSCRIBED";
+        if (realtimeLive) {
+          stopFallbackPoll();
+          sync();
+        } else {
+          startFallbackPoll();
+        }
+      });
 
     return () => {
       cancelled = true;
-      clearInterval(poll);
+      stopFallbackPoll();
+      document.removeEventListener("visibilitychange", onVisible);
       supabase.removeChannel(channel);
     };
   }, [roomId, active]);

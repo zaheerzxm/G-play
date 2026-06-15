@@ -4,7 +4,7 @@ import { RED_PACKET_MIN_COINS } from "../redPacket.js";
 
 import CoinIcon from "./CoinIcon.jsx";
 
-export default function RedPacketSheet({ coins, isSuperAdmin, onSend, onClose }) {
+export default function RedPacketSheet({ coins, isSuperAdmin, onSend, onClose, variant = "room" }) {
   const [amountInput, setAmountInput] = useState("200");
   const [busy, setBusy] = useState(false);
 
@@ -38,7 +38,9 @@ export default function RedPacketSheet({ coins, isSuperAdmin, onSend, onClose })
         </p>
 
         <p className="red-packet-hint">
-          Envelopes fall for everyone — tap to grab. Only grabbed envelopes pay out, split among grabbers. Unclaimed coins are lost.
+          {variant === "dm"
+            ? "Send a private envelope your friend can open once for the full amount."
+            : "Envelopes fall for everyone — tap to grab. Only grabbed envelopes pay out, split among grabbers. Unclaimed coins are lost."}
         </p>
 
         <label className="red-packet-label" htmlFor="rp-amount">Amount</label>

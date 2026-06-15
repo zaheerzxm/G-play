@@ -20,7 +20,7 @@ create table if not exists mafia_games (
   night_seconds int not null default 45,
   night_result_seconds int not null default 8,
   day_duration_seconds int not null default 90,
-  voting_duration_seconds int not null default 45,
+  voting_duration_seconds int not null default 10,
   reveal_roles_on_death boolean not null default false,
   allow_dead_chat boolean not null default true,
   winner_team text check (winner_team in ('mafia', 'village')),
@@ -107,6 +107,11 @@ create index if not exists mafia_games_active_idx on mafia_games(room_id) where 
 create index if not exists mafia_players_game_idx on mafia_players(game_id);
 create index if not exists mafia_events_game_idx on mafia_events(game_id, created_at);
 create index if not exists mafia_votes_game_round_idx on mafia_votes(game_id, round_number);
+
+-- Reliable Realtime UPDATE payloads for phase / player sync
+alter table mafia_games replica identity full;
+alter table mafia_players replica identity full;
+alter table mafia_events replica identity full;
 
 -- Public view — no secret roles
 create or replace view mafia_players_public as
@@ -259,10 +264,14 @@ $$;
 -- RPC: create / join / leave lobby
 -- ============================================================
 
+-- Drop older signature (no p_night_seconds) before replacing
+drop function if exists create_mafia_game(text, int, int, boolean, boolean, text);
+
 create or replace function create_mafia_game(
   p_room_id text,
   p_day_seconds int default 90,
-  p_voting_seconds int default 45,
+  p_voting_seconds int default 10,
+  p_night_seconds int default 45,
   p_reveal_on_death boolean default false,
   p_allow_dead_chat boolean default true,
   p_nickname text default 'Host'
@@ -275,6 +284,9 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_game_id uuid;
+  v_day int := greatest(30, least(300, coalesce(p_day_seconds, 90)));
+  v_vote int := greatest(10, least(120, coalesce(p_voting_seconds, 10)));
+  v_night int := greatest(30, least(120, coalesce(p_night_seconds, 45)));
 begin
   if v_uid is null then raise exception 'Not authenticated'; end if;
 
@@ -285,10 +297,10 @@ begin
   if v_game_id is not null then return v_game_id; end if;
 
   insert into mafia_games (
-    room_id, host_id, day_duration_seconds, voting_duration_seconds,
+    room_id, host_id, day_duration_seconds, voting_duration_seconds, night_seconds,
     reveal_roles_on_death, allow_dead_chat
   ) values (
-    p_room_id, v_uid, p_day_seconds, p_voting_seconds,
+    p_room_id, v_uid, v_day, v_vote, v_night,
     p_reveal_on_death, p_allow_dead_chat
   ) returning id into v_game_id;
 
@@ -416,6 +428,30 @@ begin
 end;
 $$;
 
+-- Shared with src/games/gameRoomControl.js (see supabase/game-room-control.sql)
+create or replace function public.can_control_room_game(
+  p_room_id text,
+  p_game_host_id uuid,
+  p_user_id uuid default auth.uid()
+)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if p_user_id is null then return false; end if;
+  if p_game_host_id is not null and p_game_host_id = p_user_id then return true; end if;
+  if exists (select 1 from rooms r where r.id = p_room_id and r.owner_id = p_user_id) then return true; end if;
+  if exists (select 1 from seats s where s.room_id = p_room_id and s.seat_number = 1 and s.user_id = p_user_id) then return true; end if;
+  if exists (select 1 from seats s where s.room_id = p_room_id and s.seat_number = 2 and s.user_id = p_user_id) then return true; end if;
+  if exists (select 1 from room_admins ra where ra.room_id = p_room_id and ra.user_id = p_user_id) then return true; end if;
+  if exists (select 1 from profiles p where p.id = p_user_id and p.is_super_admin = true) then return true; end if;
+  return false;
+end;
+$$;
+
 create or replace function start_mafia_game(p_game_id uuid)
 returns void
 language plpgsql
@@ -429,7 +465,9 @@ declare
 begin
   if v_uid is null then raise exception 'Not authenticated'; end if;
   select * into v_game from mafia_games where id = p_game_id;
-  if v_game.host_id <> v_uid then raise exception 'Only host can start'; end if;
+  if not can_control_room_game(v_game.room_id, v_game.host_id, v_uid) then
+    raise exception 'Not authorized to start game';
+  end if;
   if v_game.status <> 'lobby' then raise exception 'Game already started'; end if;
 
   select count(*) into v_count from mafia_players where game_id = p_game_id;
@@ -542,10 +580,32 @@ begin
   v_is_mafia := v_target.role = 'mafia';
   perform mafia_log_event(
     p_game_id, v_game.round_number, 'detective_result',
-    case when v_is_mafia then 'Suspect is Mafia' else 'Suspect is not Mafia' end,
+    v_target.nickname || case when v_is_mafia then ' is Mafia!' else ' is not Mafia' end,
     '{}'::jsonb, v_uid,
-    jsonb_build_object('target_user_id', p_target_user_id, 'is_mafia', v_is_mafia)
+    jsonb_build_object(
+      'target_user_id', p_target_user_id,
+      'target_nickname', v_target.nickname,
+      'is_mafia', v_is_mafia
+    )
   );
+
+  if v_is_mafia then
+    perform mafia_log_event(
+      p_game_id, v_game.round_number, 'detective_catch',
+      v_me.nickname || ' caught ' || v_target.nickname || '! Village wins!',
+      jsonb_build_object(
+        'detective_user_id', v_uid,
+        'mafia_user_id', p_target_user_id,
+        'winner_team', 'village'
+      )
+    );
+    perform finish_mafia_game(
+      p_game_id,
+      'village',
+      v_me.nickname || ' caught ' || v_target.nickname || '! Village wins!'
+    );
+    return;
+  end if;
 
   perform mafia_touch_game(p_game_id);
 end;
@@ -569,7 +629,7 @@ declare
   v_nickname text;
   v_reveal boolean;
 begin
-  select * into v_game from mafia_games where id = p_game_id;
+  select * into v_game from mafia_games where id = p_game_id for update;
   if v_game.phase <> 'night' then return; end if;
 
   select target_user_id into v_kill_target
@@ -656,7 +716,7 @@ declare
   v_tie_count int;
   v_nickname text;
 begin
-  select * into v_game from mafia_games where id = p_game_id;
+  select * into v_game from mafia_games where id = p_game_id for update;
   if v_game.phase <> 'voting' then return; end if;
 
   select target_user_id, count(*)::int into v_top, v_top_count
@@ -699,6 +759,50 @@ begin
 end;
 $$;
 
+create or replace function finish_mafia_game(p_game_id uuid, p_winner text, p_message text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_winner not in ('mafia', 'village') then return; end if;
+
+  update mafia_games
+  set winner_team = p_winner, phase = 'game_over', status = 'ended', ended_at = now(), phase_ends_at = null
+  where id = p_game_id and status = 'active';
+
+  if not found then return; end if;
+
+  perform mafia_log_event(
+    p_game_id,
+    (select round_number from mafia_games where id = p_game_id),
+    'game_over',
+    coalesce(nullif(trim(p_message), ''), case when p_winner = 'mafia' then 'Mafia wins!' else 'Village wins!' end),
+    jsonb_build_object('winner_team', p_winner)
+  );
+
+  insert into mafia_player_stats (user_id, games_played, games_won, games_lost, mafia_wins, villager_wins, updated_at)
+  select
+    mp.user_id,
+    1,
+    case when (p_winner = 'mafia' and mp.team = 'mafia') or (p_winner = 'village' and mp.team = 'village') then 1 else 0 end,
+    case when (p_winner = 'mafia' and mp.team = 'village') or (p_winner = 'village' and mp.team = 'mafia') then 1 else 0 end,
+    case when p_winner = 'mafia' and mp.team = 'mafia' then 1 else 0 end,
+    case when p_winner = 'village' and mp.team = 'village' then 1 else 0 end,
+    now()
+  from mafia_players mp where mp.game_id = p_game_id
+  on conflict (user_id) do update set
+    games_played = mafia_player_stats.games_played + 1,
+    games_won = mafia_player_stats.games_won + excluded.games_won,
+    games_lost = mafia_player_stats.games_lost + excluded.games_lost,
+    mafia_wins = mafia_player_stats.mafia_wins + excluded.mafia_wins,
+    villager_wins = mafia_player_stats.villager_wins + excluded.villager_wins,
+    times_mafia = mafia_player_stats.times_mafia + case when excluded.mafia_wins > 0 then 1 else 0 end,
+    updated_at = now();
+end;
+$$;
+
 create or replace function check_mafia_win_condition(p_game_id uuid)
 returns void
 language plpgsql
@@ -726,36 +830,7 @@ begin
     return;
   end if;
 
-  update mafia_games
-  set winner_team = v_winner, phase = 'game_over', status = 'ended', ended_at = now(), phase_ends_at = null
-  where id = p_game_id;
-
-  perform mafia_log_event(
-    p_game_id,
-    (select round_number from mafia_games where id = p_game_id),
-    'game_over',
-    case when v_winner = 'mafia' then 'Mafia wins!' else 'Village wins!' end,
-    jsonb_build_object('winner_team', v_winner)
-  );
-
-  insert into mafia_player_stats (user_id, games_played, games_won, games_lost, mafia_wins, villager_wins, updated_at)
-  select
-    mp.user_id,
-    1,
-    case when (v_winner = 'mafia' and mp.team = 'mafia') or (v_winner = 'village' and mp.team = 'village') then 1 else 0 end,
-    case when (v_winner = 'mafia' and mp.team = 'village') or (v_winner = 'village' and mp.team = 'mafia') then 1 else 0 end,
-    case when v_winner = 'mafia' and mp.team = 'mafia' then 1 else 0 end,
-    case when v_winner = 'village' and mp.team = 'village' then 1 else 0 end,
-    now()
-  from mafia_players mp where mp.game_id = p_game_id
-  on conflict (user_id) do update set
-    games_played = mafia_player_stats.games_played + 1,
-    games_won = mafia_player_stats.games_won + excluded.games_won,
-    games_lost = mafia_player_stats.games_lost + excluded.games_lost,
-    mafia_wins = mafia_player_stats.mafia_wins + excluded.mafia_wins,
-    villager_wins = mafia_player_stats.villager_wins + excluded.villager_wins,
-    times_mafia = mafia_player_stats.times_mafia + case when excluded.mafia_wins > 0 then 1 else 0 end,
-    updated_at = now();
+  perform finish_mafia_game(p_game_id, v_winner, null);
 end;
 $$;
 
@@ -772,7 +847,7 @@ as $$
 declare
   v_game mafia_games;
 begin
-  select * into v_game from mafia_games where id = p_game_id;
+  select * into v_game from mafia_games where id = p_game_id for update;
   if v_game.status <> 'active' then return; end if;
   if v_game.phase_ends_at is null or v_game.phase_ends_at > now() then return; end if;
 
@@ -812,7 +887,9 @@ declare
 begin
   if v_uid is null then raise exception 'Not authenticated'; end if;
   select * into v_game from mafia_games where id = p_game_id;
-  if v_game.host_id <> v_uid then raise exception 'Only host can end game'; end if;
+  if not can_control_room_game(v_game.room_id, v_game.host_id, v_uid) then
+    raise exception 'Not authorized to end game';
+  end if;
 
   update mafia_games
   set status = 'ended', phase = 'game_over', ended_at = now(), phase_ends_at = null
@@ -831,8 +908,8 @@ as $$
 declare v_uid uuid := auth.uid();
 begin
   if v_uid is null then raise exception 'Not authenticated'; end if;
-  if not exists (select 1 from mafia_games where id = p_game_id and host_id = v_uid) then
-    raise exception 'Only host can kick';
+  if not exists (select 1 from mafia_games g where g.id = p_game_id and can_control_room_game(g.room_id, g.host_id, v_uid)) then
+    raise exception 'Not authorized to kick players';
   end if;
   delete from mafia_players where game_id = p_game_id and user_id = p_target_user_id;
   perform mafia_touch_game(p_game_id);
@@ -953,6 +1030,47 @@ as $$
   limit 1;
 $$;
 
+-- End the room's active Mafia lobby/game when switching games or leaving games mode.
+-- Callable by the Mafia host, room owner, or a room admin.
+create or replace function end_active_mafia_game_for_room(p_room_id text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_game_id uuid;
+  v_game mafia_games;
+begin
+  if v_uid is null then raise exception 'Not authenticated'; end if;
+
+  select id into v_game_id
+  from mafia_games
+  where room_id = p_room_id and status in ('lobby', 'active')
+  order by created_at desc
+  limit 1;
+
+  if v_game_id is null then return null; end if;
+
+  select * into v_game from mafia_games where id = v_game_id;
+
+  if not can_control_room_game(p_room_id, v_game.host_id, v_uid) then
+    raise exception 'Not authorized to stop Mafia';
+  end if;
+
+  update mafia_games
+  set status = 'cancelled', phase = 'game_over', ended_at = now(), phase_ends_at = null
+  where id = v_game_id;
+
+  perform mafia_log_event(
+    v_game_id, v_game.round_number, 'game_over', 'Game stopped', '{}'::jsonb
+  );
+
+  return v_game_id;
+end;
+$$;
+
 -- Realtime (ignore errors if already added)
 do $$ begin
   alter publication supabase_realtime add table mafia_games;
@@ -979,7 +1097,7 @@ as $$
 $$;
 grant execute on function get_mafia_private_state to authenticated;
 
-grant execute on function create_mafia_game to authenticated;
+grant execute on function create_mafia_game(text, int, int, int, boolean, boolean, text) to authenticated;
 grant execute on function join_mafia_game to authenticated;
 grant execute on function leave_mafia_game to authenticated;
 grant execute on function set_mafia_ready to authenticated;
@@ -995,3 +1113,4 @@ grant execute on function get_mafia_public_state to authenticated;
 grant execute on function get_my_mafia_private_state to authenticated;
 grant execute on function get_mafia_game_reveal to authenticated;
 grant execute on function get_active_mafia_game to authenticated;
+grant execute on function end_active_mafia_game_for_room(text) to authenticated;

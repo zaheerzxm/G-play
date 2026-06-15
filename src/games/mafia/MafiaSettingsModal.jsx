@@ -17,10 +17,20 @@ export default function MafiaSettingsModal({ settings, onChange, onClose }) {
           Voting (seconds)
           <input
             type="number"
-            min={20}
+            min={10}
             max={120}
             value={settings.votingSeconds}
             onChange={(e) => onChange({ ...settings, votingSeconds: Number(e.target.value) })}
+          />
+        </label>
+        <label>
+          Night actions (seconds)
+          <input
+            type="number"
+            min={30}
+            max={120}
+            value={settings.nightSeconds}
+            onChange={(e) => onChange({ ...settings, nightSeconds: Number(e.target.value) })}
           />
         </label>
         <label className="mafia-settings-check">

@@ -1,6 +1,6 @@
 import { findGift, findGiftByName, giftQuantityFromName } from "./gifts.js";
 
-export const PREMIUM_GIFT_MIN_COST = 500;
+export const PREMIUM_GIFT_MIN_COST = 1000;
 
 const VALID_PREMIUM_FX = new Set([
   "universe",

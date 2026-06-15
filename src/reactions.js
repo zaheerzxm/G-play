@@ -37,6 +37,10 @@ export function buildReactionMessage(key) {
       const prizes = ["Nothing", "10 gold", "50 gold", "Jackpot!"];
       return `🎰 lottery: ${prizes[Math.floor(Math.random() * prizes.length)]}`;
     }
+    case "lucky":
+      return `🍀 lucky number: ${1 + Math.floor(Math.random() * 100)}`;
+    case "bigwinner":
+      return "🎉 big winner round started — host picks the winner!";
     case "rps": {
       const moves = ["Rock", "Paper", "Scissors"];
       return `✌️ played ${moves[Math.floor(Math.random() * moves.length)]}`;

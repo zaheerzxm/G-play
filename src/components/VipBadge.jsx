@@ -1,6 +1,16 @@
 import { vipTierFromLevel } from "../vipTiers.js";
 
-function VipBadgeIcon({ tier }) {
+function VipBadgeIcon({ tier, minimal = false }) {
+  if (minimal) {
+    return (
+      <svg className="vip-badge-svg" viewBox="0 0 96 96" aria-hidden focusable="false">
+        <path className="vip-badge-outer" d="M48 6 82 25v41L48 90 14 66V25L48 6Z" />
+        <path className="vip-badge-inner" d="M48 20 70 32v26L48 74 26 58V32L48 20Z" />
+        <path className="vip-badge-star" d="M48 28l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2 6-13Z" />
+      </svg>
+    );
+  }
+
   const withSpikes = ["silver-spike", "silver-sun", "silver-royal", "gold-spike", "gold-rank", "gold-wings", "gold-royal"].includes(tier);
   const withWings = ["gold-wings", "gold-royal"].includes(tier);
   const withRank = ["silver-rank", "silver-royal", "gold-rank", "gold-wings", "gold-royal"].includes(tier);
@@ -64,7 +74,7 @@ export default function VipBadge({ level, compact = false, className = "" }) {
       title={tier.label}
       aria-label={tier.label}
     >
-      <VipBadgeIcon tier={tier.tier} />
+      <VipBadgeIcon tier={tier.tier} minimal={compact} />
       <span className="vip-badge-lv">{tier.level}</span>
     </span>
   );

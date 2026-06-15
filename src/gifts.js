@@ -1,5 +1,6 @@
 import { formatCompactNumber } from "./formatCompact.js";
 import { ROSE_LOTTIE_SRC } from "./lottieGift.js";
+import { supabase } from "./supabase.js";
 
 const ROSE_GIFT_FX = { fx: "rose-lottie", lottie: ROSE_LOTTIE_SRC };
 
@@ -281,6 +282,33 @@ export function rollGiftRewardResult(giftCost, quantity = 1) {
     };
   }
   return { total: rollGiftRewardsTotal(cost, count), lucky: false };
+}
+
+/** Prefer server roll when `roll_gift_reward` RPC is deployed; falls back to client roll. */
+export async function rollGiftRewardResultAsync(giftCost, quantity = 1) {
+  const count = Math.max(1, Math.floor(Number(quantity) || 1));
+  const cost = Math.max(0, Math.floor(Number(giftCost) || 0));
+  if (cost <= 0) return { total: 0, lucky: false };
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.rpc("roll_gift_reward", {
+        p_unit_cost: cost,
+        p_quantity: count,
+      });
+      if (!error && data && typeof data === "object") {
+        return {
+          total: Math.max(0, Math.floor(Number(data.total) || 0)),
+          lucky: Boolean(data.lucky),
+          multiplier: data.multiplier ? Number(data.multiplier) : undefined,
+        };
+      }
+    } catch {
+      /* use client roll */
+    }
+  }
+
+  return rollGiftRewardResult(cost, count);
 }
 
 /** Coins charged per unit when sending (package inventory = free). */

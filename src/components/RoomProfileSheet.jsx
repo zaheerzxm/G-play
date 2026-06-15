@@ -3,6 +3,7 @@ import { roomExpPercent } from "../gamification.js";
 import { formatCompactNumber } from "../formatCompact.js";
 import { roomTagLabel } from "../roomTags.js";
 import AvatarImg from "./AvatarImg.jsx";
+import { IconCopy, IconGem, UiIcon } from "./NavIcons.jsx";
 
 function truncateName(name, max = 8) {
   const s = String(name ?? "");
@@ -87,12 +88,12 @@ export default function RoomProfileSheet({
             <span className="weplay-room-profile-tag weplay-room-profile-tag--friends">{tagLabel}</span>
             {isAdvanced && <span className="weplay-room-profile-tag weplay-room-profile-tag--muted">Advanced</span>}
             <button type="button" className="weplay-room-profile-id" onClick={copyRoomId}>
-              {room.room_code} <span aria-hidden>📋</span>
+              {room.room_code} <UiIcon Icon={IconCopy} aria-hidden />
             </button>
           </p>
 
           <div className="weplay-room-profile-level">
-            <span className="weplay-room-profile-diamond">💎 {roomLevel}</span>
+            <span className="weplay-room-profile-diamond"><UiIcon Icon={IconGem} /> {roomLevel}</span>
             <div className="weplay-room-profile-exp">
               <span className="weplay-room-profile-exp-bar">
                 <span style={{ width: `${expPct}%` }} />

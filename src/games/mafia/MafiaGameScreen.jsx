@@ -69,7 +69,7 @@ export default function MafiaGameScreen({
                 {actions.investigate && (
                   <MafiaActionPanel
                     title="Detective — investigate"
-                    hint="Learn if they are Mafia"
+                    hint="Investigate a player. If they are Mafia, the village wins instantly!"
                     players={alive}
                     userId={userId}
                     onSubmit={actions.investigate}
@@ -134,11 +134,21 @@ export default function MafiaGameScreen({
 
       {roleInfo.detectiveResults?.length > 0 && (
         <div className="mafia-detective-log">
-          <h4>Investigation results</h4>
+          <h4>Your investigations</h4>
           <ul>
-            {roleInfo.detectiveResults.map((e) => (
-              <li key={e.id}>{e.message}</li>
-            ))}
+            {roleInfo.detectiveResults.map((e) => {
+              const data = e.private_data ?? e.public_data ?? {};
+              const name = data.target_nickname
+                || players.find((p) => String(p.user_id) === String(data.target_user_id))?.nickname
+                || "Unknown";
+              const isMafia = data.is_mafia === true;
+              return (
+                <li key={e.id} className={isMafia ? "mafia-detective-log--mafia" : ""}>
+                  <strong>{name}</strong>
+                  {isMafia ? " — Mafia! Village wins!" : " — not Mafia"}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

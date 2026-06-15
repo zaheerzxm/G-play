@@ -4,9 +4,11 @@ import LoginScreen from "./components/LoginScreen.jsx";
 import LobbyScreen from "./components/LobbyScreen.jsx";
 import ProfileSetupScreen from "./components/ProfileSetupScreen.jsx";
 import RoomView from "./components/RoomView.jsx";
+import RoomPasswordSheet from "./components/RoomPasswordSheet.jsx";
 import DmCallProvider from "./components/DmCallProvider.jsx";
 import { ensureProfile, loadMyRooms, loadProfileBundle, loadSavedRooms, searchRoomByCode, loadRoomById, cleanupOwnedEmptyTempRooms, cleanupStaleTempRooms } from "./profile.js";
 import { checkRoomEntry } from "./roomAccess.js";
+import { rememberRoomUnlock } from "./roomPassword.js";
 import { isConfigured, supabase } from "./supabase.js";
 import { fetchWalletCoins, subscribeWallet } from "./wallet.js";
 import { effectiveVipLevel } from "./vipStatus.js";
@@ -53,6 +55,8 @@ export default function App() {
   const [roomMinimized, setRoomMinimized] = useState(false);
   const [pendingRoomCode, setPendingRoomCode] = useState(null);
   const [error, setError] = useState(null);
+  const [chatFriend, setChatFriend] = useState(null);
+  const [passwordPromptRoom, setPasswordPromptRoom] = useState(null);
 
   const isSuperAdmin = Boolean(profile?.is_super_admin);
 
@@ -191,7 +195,11 @@ export default function App() {
         if (room) {
           const { ok, reason } = await checkRoomEntry(session.user.id, room);
           if (!ok) {
-            setError(reason ?? "Can't enter this room");
+            if (reason === "password_required") {
+              setPasswordPromptRoom(room);
+            } else {
+              setError(reason ?? "Can't enter this room");
+            }
             return;
           }
           setActiveRoom(room);
@@ -225,9 +233,13 @@ export default function App() {
         const room = await loadRoomById(stored.id);
         if (cancelled) return;
         if (room) {
-          const { ok } = await checkRoomEntry(session.user.id, room);
+          const { ok, reason } = await checkRoomEntry(session.user.id, room);
           if (!ok) {
-            clearStoredActiveRoom();
+            if (reason === "password_required") {
+              setPasswordPromptRoom(room);
+            } else {
+              clearStoredActiveRoom();
+            }
             return;
           }
           setActiveRoom(room);
@@ -246,12 +258,19 @@ export default function App() {
     };
   }, [profile, activeRoom, pendingRoomCode]);
 
-  async function handleJoinRoom(room) {
-    const { ok, reason } = await checkRoomEntry(session?.user?.id, room);
+  async function handleJoinRoom(room, password) {
+    const viewerId = session?.user?.id;
+    const { ok, reason } = await checkRoomEntry(viewerId, room, { password });
     if (!ok) {
+      if (reason === "password_required") {
+        setPasswordPromptRoom(room);
+        return;
+      }
       setError(reason ?? "Can't enter this room");
       return;
     }
+    if (password) rememberRoomUnlock(room.id);
+    setPasswordPromptRoom(null);
     setActiveRoom(room);
     setRoomMinimized(false);
     saveStoredActiveRoom(room, false);
@@ -272,6 +291,13 @@ export default function App() {
     setActiveRoom(null);
     setRoomMinimized(false);
     clearStoredActiveRoom();
+  }
+
+  function handleOpenDirectChat(friend) {
+    if (!friend?.id) return;
+    setRoomMinimized(true);
+    if (activeRoom) saveStoredActiveRoom(activeRoom, true);
+    setChatFriend(friend);
   }
 
   function handleSignOut() {
@@ -339,6 +365,7 @@ export default function App() {
             onMinimize={handleMinimizeRoom}
             onLeave={handleLeaveRoom}
             onSavedRoomsChange={handleSavedRoomsChange}
+            onOpenDirectChat={handleOpenDirectChat}
           />
         </div>
       )}
@@ -359,8 +386,24 @@ export default function App() {
             onRefreshRooms={() => refreshProfile(session.user.id)}
             onProfileUpdate={setProfile}
             onSignOut={handleSignOut}
+            chatFriend={chatFriend}
+            onChatFriendChange={setChatFriend}
           />
         </>
+      )}
+
+      {passwordPromptRoom && (
+        <RoomPasswordSheet
+          room={passwordPromptRoom}
+          error={error}
+          onClose={() => {
+            setPasswordPromptRoom(null);
+            setError(null);
+          }}
+          onSubmit={async (password) => {
+            await handleJoinRoom(passwordPromptRoom, password);
+          }}
+        />
       )}
 
       {activeRoom && roomMinimized && (
@@ -370,7 +413,9 @@ export default function App() {
           onClick={handleReopenRoom}
           aria-label="Reopen voice room"
         >
-          <span className="float-room-icon">🎙️</span>
+          <span className="float-room-icon" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5.5 10.5v3a6.5 6.5 0 0 0 13 0v-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /><rect x="9" y="4.5" width="6" height="10" rx="3" stroke="currentColor" strokeWidth="1.6" /></svg>
+          </span>
           <span className="float-room-label">{activeRoom.name}</span>
         </button>
       )}

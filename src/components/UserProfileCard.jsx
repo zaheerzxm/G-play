@@ -5,6 +5,7 @@ import { bondMeta, loadBondBetween } from "../relationships.js";
 import ProfileBadgeRow from "./ProfileBadgeRow.jsx";
 import AvatarImg from "./AvatarImg.jsx";
 import UserFullProfileSheet from "./UserFullProfileSheet.jsx";
+import VipDisplayName from "./VipDisplayName.jsx";
 
 const CP_TYPES = new Set(["cp", "wedding", "choti_ghar_wali", "badi_ghar_wali"]);
 
@@ -138,7 +139,7 @@ export default function UserProfileCard({
             ···
           </button>
           {showCpPill && (
-            <button type="button" className="user-profile-weplay-cp" onClick={openFull}>
+            <button type="button" className="user-profile-weplay-cp" onClick={() => onOpenIntimateSpace?.(pair)}>
               His/Her {bondMeta(pair.bondType).label}
             </button>
           )}
@@ -158,7 +159,7 @@ export default function UserProfileCard({
             </button>
             <div className="user-profile-weplay-info">
               <button type="button" className="user-profile-weplay-name" onClick={openFull}>
-                {displayName}
+                <VipDisplayName name={displayName} profile={merged} variant="light" />
               </button>
               <ProfileBadgeRow profile={merged} />
               {(seat.user_code || profile?.user_code) && (
@@ -283,9 +284,9 @@ export default function UserProfileCard({
           coins={coins}
           isSuperAdmin={isSuperAdmin}
           onCoinsChange={onCoinsChange}
-          onOpenIntimateSpace={() => {
+          onOpenIntimateSpace={(bond) => {
             setFullOpen(false);
-            onOpenIntimateSpace?.();
+            onOpenIntimateSpace?.(bond ?? pair);
           }}
           onOpenLoveHome={() => {
             setFullOpen(false);

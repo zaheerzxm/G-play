@@ -1,76 +1,95 @@
 import { useState } from "react";
+import { SPOTLIGHT_FEED_NAME } from "../moments.js";
 import MomentsFeed from "./MomentsFeed.jsx";
 import CreateMomentSheet from "./CreateMomentSheet.jsx";
-import { SPOTLIGHT_FEED_NAME } from "../moments.js";
-import { IconChurch, IconFamily, IconNearby } from "./NavIcons.jsx";
+import { IconChurch, IconClan, IconMoments, IconNearby } from "./NavIcons.jsx";
 
 const EXPLORE_SHORTCUTS = [
-  { key: "church", Icon: IconChurch, label: "Church" },
-  { key: "family", Icon: IconFamily, label: "Family" },
-  { key: "nearby", Icon: IconNearby, label: "Nearby" },
+  { key: "church", Icon: IconChurch, label: "church" },
+  { key: "clan", Icon: IconClan, label: "Clan", notifyKey: "clan" },
+  { key: "nearby", Icon: IconNearby, label: "nearby" },
 ];
 
 export default function ExploreTab({
   userId,
   displayName,
+  avatarUrl,
   onOpenChurch,
-  onOpenFamily,
+  onOpenClan,
   onOpenNearby,
+  onOpenSpotlight,
+  clanNotify = false,
 }) {
   const [postOpen, setPostOpen] = useState(false);
   const [editingMoment, setEditingMoment] = useState(null);
+  const [momentsOpen, setMomentsOpen] = useState(false);
   const [feedKey, setFeedKey] = useState(0);
 
   function handleShortcut(key) {
-    if (key === "church") onOpenChurch?.();
-    else if (key === "family") onOpenFamily?.();
-    else if (key === "nearby") onOpenNearby?.();
+    if (key === "church") {
+      if (onOpenChurch) onOpenChurch();
+      else return;
+    } else if (key === "clan") {
+      if (onOpenClan) onOpenClan();
+      else return;
+    } else if (key === "nearby") {
+      if (onOpenNearby) onOpenNearby();
+    }
   }
 
   function refreshFeed() {
     setFeedKey((k) => k + 1);
   }
 
+  const initial = (displayName || "?").charAt(0).toUpperCase();
+
   return (
     <div className="G-play-explore-tab">
       <header className="G-play-tab-header G-play-tab-header--explore">
-        <h2 className="G-play-tab-title">Discover</h2>
+        <h2 className="G-play-tab-title G-play-tab-title--discover">Discover</h2>
       </header>
 
+      <button type="button" className="G-play-explore-moments-card" onClick={() => onOpenSpotlight?.() ?? setMomentsOpen(true)}>
+        <span className="G-play-explore-moments-icon" aria-hidden>
+          <IconMoments />
+        </span>
+        <strong className="G-play-explore-moments-label">{SPOTLIGHT_FEED_NAME}</strong>
+        <span className="G-play-explore-moments-trail">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="G-play-explore-moments-avatar" />
+          ) : (
+            <span className="G-play-explore-moments-avatar G-play-explore-moments-avatar--fallback">{initial}</span>
+          )}
+          <span className="G-play-explore-moments-chevron" aria-hidden>›</span>
+        </span>
+      </button>
+
       <div className="G-play-explore-shortcuts">
-        {EXPLORE_SHORTCUTS.map(({ key, Icon, label }) => (
+        {EXPLORE_SHORTCUTS.map(({ key, Icon, label, notifyKey }) => (
           <button key={key} type="button" className="G-play-explore-shortcut" onClick={() => handleShortcut(key)}>
-            <span className="G-play-explore-shortcut-icon">
+            <span className={`G-play-explore-shortcut-icon G-play-explore-shortcut-icon--${key}`}>
               <Icon />
             </span>
-            <strong>{label}</strong>
+            <strong>
+              {label}
+              {notifyKey === "clan" && clanNotify && (
+                <em className="G-play-explore-shortcut-dot" aria-hidden />
+              )}
+            </strong>
           </button>
         ))}
       </div>
 
-      <section className="G-play-explore-moments">
-        <div className="G-play-explore-moments-head">
-          <div>
-            <h3 className="G-play-explore-moments-title">{SPOTLIGHT_FEED_NAME}</h3>
-            <p className="G-play-explore-moments-sub">Share vibes with the community</p>
-          </div>
-          <button
-            type="button"
-            className="G-play-explore-moments-add"
-            onClick={() => setPostOpen(true)}
-            aria-label="New post"
-          >
-            +
-          </button>
-        </div>
+      {momentsOpen && (
         <MomentsFeed
           key={feedKey}
           userId={userId}
-          embedded
-          feedOnly
+          fullPage
+          onClose={() => setMomentsOpen(false)}
           onEditMoment={(moment) => setEditingMoment(moment)}
+          onCreatePost={() => setPostOpen(true)}
         />
-      </section>
+      )}
 
       {postOpen && (
         <CreateMomentSheet

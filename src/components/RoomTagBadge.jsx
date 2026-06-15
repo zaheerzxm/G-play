@@ -8,7 +8,7 @@ export default function RoomTagBadge({ tag, compact = false, className = "" }) {
       className={`G-play-room-tag G-play-room-tag--${key}${compact ? " G-play-room-tag--compact" : ""}${className ? ` ${className}` : ""}`}
       title={meta.hint}
     >
-      {meta.emoji} {meta.label}
+      {compact ? meta.label : `${meta.emoji} ${meta.label}`}
     </span>
   );
 }

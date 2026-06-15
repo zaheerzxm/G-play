@@ -2,10 +2,26 @@ import { useVoice } from "../context/VoiceContext.jsx";
 
 export default function SpeakerButton() {
   const voice = useVoice();
+  if (!voice) return null;
 
-  if (!voice?.voiceReady) return null;
+  const { voiceReady, voiceStatus, voiceError, speakerEnabled, toggleSpeaker, retryConnect } = voice;
 
-  const { speakerEnabled, toggleSpeaker } = voice;
+  if (!voiceReady) {
+    const hint = voiceError
+      || (voiceStatus === "connecting" ? "Connecting voice…" : "Voice unavailable — tap to retry");
+    return (
+      <button
+        type="button"
+        className="speaker-btn dock-speaker-btn speaker-btn--muted"
+        disabled={voiceStatus === "connecting"}
+        onClick={() => retryConnect?.()}
+        aria-label={hint}
+        title={hint}
+      >
+        <span className="dock-speaker-icon" aria-hidden />
+      </button>
+    );
+  }
 
   return (
     <button
