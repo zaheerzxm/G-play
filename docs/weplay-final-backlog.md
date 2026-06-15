@@ -165,9 +165,9 @@
 **Dependencies:** FB-010  
 **Complexity:** XL  
 **Lineage:** GAP-041  
-**Status:** Not Started  
-**Implemented In:** —  
-**Testing Notes:** —  
+**Status:** In Progress  
+**Implemented In:** b35d622 / 2026-06-14  
+**Testing Notes:** Phase A expanded home Games grid with 7 lobby-only coming-soon titles and SOON badges; live games unchanged; FB-010 removed UNO/Ludo/Jackaroo from marketing.  
 
 ---
 
@@ -201,9 +201,9 @@
 **Dependencies:** FB-008  
 **Complexity:** XL  
 **Lineage:** GAP-091  
-**Status:** Not Started  
-**Implemented In:** —  
-**Testing Notes:** —  
+**Status:** Completed  
+**Implemented In:** fcc91c6 / 2026-06-14  
+**Testing Notes:** UNO, Ludo, Jackaroo removed from marketing via `marketing: false`; hidden from home coming-soon grid and GameModal; catalog entries retained for future playable work; no dead tiles.  
 
 ---
 

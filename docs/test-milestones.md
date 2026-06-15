@@ -26,7 +26,7 @@
 
 | Checkpoint | FB range | Items | Critical | High | Medium | Low | Status |
 |------------|----------|------:|---------:|-----:|-------:|----:|--------|
-| **1** | FB-001 – FB-010 | 10 | 10 | 0 | 0 | 0 | **In progress** (3/10 implemented) |
+| **1** | FB-001 – FB-010 | 10 | 10 | 0 | 0 | 0 | **In progress** (4/10 implemented) |
 | **2** | FB-011 – FB-025 | 15 | 0 | 15 | 0 | 0 | Not started |
 | **3** | FB-026 – FB-050 | 25 | 0 | 25 | 0 | 0 | Not started |
 | **4** | FB-051 – FB-085 | 35 | 0 | 1 | 33 | 1 | Not started |
@@ -53,12 +53,12 @@
 | FB-005 | Create Group DM | **Completed** | `0e6d385` (+ `5b115aa`, `1701510`, `52cadef`) |
 | FB-006 | Drawing widget overlay | Not Started | — |
 | FB-007 | Family Fund donation flow | Not Started | — |
-| FB-008 | Lobby games catalog | Not Started | — |
+| FB-008 | Lobby games catalog | **In Progress** | `b35d622` (Phase A) |
 | FB-009 | Privacy settings screen | **Completed** | `8dbdbca` (+ hardening `d546f78`) |
-| FB-010 | UNO / Ludo / lobby games | Not Started | — |
+| FB-010 | UNO / Ludo / lobby games | **Completed** | `fcc91c6` |
 
-**Implemented:** 3 / 10  
-**Checkpoint passed:** ☐ No — manual tests not executed for completed items; 7 items remain.
+**Implemented:** 4 / 10  
+**Checkpoint passed:** ☐ No — manual tests not executed for completed items; 6 items remain.
 
 ### Features affected
 
@@ -150,14 +150,20 @@ Not verified this pass (non-blocking for FB-005; Checkpoint 1 regression): unrea
 - Donation message in clan chat increments treasury
 - Balance and chat line match donation amount
 
-#### FB-008 — Lobby games catalog *(when implemented)*
+#### FB-008 — Lobby games catalog *(in progress — Phase A)*
+
+Phase A (`b35d622`): home Games grid expanded with 7 lobby-only coming-soon titles and SOON badges; live games unchanged.
+
+**Manual validation:** pending.
 
 - Home grid shows expanded WePlay titles
 - Tapping each tile navigates or shows correct state (playable vs coming soon)
 
-#### FB-010 — UNO / Ludo / lobby games *(when implemented)*
+#### FB-010 — UNO / Ludo / lobby games *(implemented — signed off via removal path)*
 
-- UNO, Ludo, Jackaroo either launch playable sessions or are removed from marketing
+Completed via **removal from marketing** (`fcc91c6`), not playable MVP: UNO, Ludo, Jackaroo use `marketing: false` and are hidden from home coming-soon grid and GameModal; catalog entries retained.
+
+- UNO, Ludo, Jackaroo removed from marketing (playable path deferred)
 - No broken/dead tiles in lobby grid
 
 ### Regression tests (Checkpoint 1)
@@ -183,7 +189,8 @@ Run after **all** FB-001–010 items are implemented and individually smoke-test
 | FB-001 BFF | | | |
 | FB-009 Privacy | | | |
 | FB-005 Group DM | | 2026-06-14 | Pass |
-| FB-002 – FB-004, FB-006 – FB-010 | | | |
+| FB-010 UNO / Ludo / lobby games | | 2026-06-14 | Pass (removal path) |
+| FB-002 – FB-004, FB-006 – FB-009, FB-008 | | | |
 | Regression | | | |
 | **Checkpoint 1 total** | | | |
 
