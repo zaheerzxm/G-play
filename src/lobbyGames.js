@@ -1,4 +1,4 @@
-import { comingMiniGames, liveMiniGames } from "./games/catalog.js";
+import { liveMiniGames, marketedComingMiniGames } from "./games/catalog.js";
 
 /** sessionStorage key — home lobby tile → auto-select in GameLauncher */
 export const PENDING_LOBBY_GAME_KEY = "gplay.pendingGameType";
@@ -105,9 +105,9 @@ export const LOBBY_GAMES_GRID = featured
   ? live.filter((g) => g.id !== featured.id).map(toLiveLobbyTile)
   : live.map(toLiveLobbyTile);
 
-/** Coming-soon tiles — catalog stubs + WePlay lobby-only titles. */
+/** Coming-soon tiles — marketed catalog stubs + WePlay lobby-only titles. */
 export const LOBBY_COMING_GAMES_GRID = [
-  ...comingMiniGames().map(toComingLobbyTile),
+  ...marketedComingMiniGames().map(toComingLobbyTile),
   ...LOBBY_ONLY_GAMES.map(toComingLobbyTile),
 ];
 

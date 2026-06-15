@@ -47,6 +47,7 @@ export const MINI_GAMES = [
     description: "Coming soon",
     players: "2-4",
     live: false,
+    marketing: false,
   },
   {
     id: "ludo",
@@ -55,6 +56,7 @@ export const MINI_GAMES = [
     description: "Coming soon",
     players: "2-4",
     live: false,
+    marketing: false,
   },
   {
     id: "jackaroo",
@@ -63,6 +65,7 @@ export const MINI_GAMES = [
     description: "Coming soon",
     players: "2-4",
     live: false,
+    marketing: false,
   },
 ];
 
@@ -72,6 +75,11 @@ export function liveMiniGames() {
 
 export function comingMiniGames() {
   return MINI_GAMES.filter((g) => !g.live);
+}
+
+/** Non-live games shown on lobby / in-room marketing surfaces. */
+export function marketedComingMiniGames() {
+  return MINI_GAMES.filter((g) => !g.live && g.marketing !== false);
 }
 
 export function getGameById(id) {

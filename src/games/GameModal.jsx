@@ -1,4 +1,4 @@
-import { liveMiniGames, comingMiniGames } from "./catalog.js";
+import { liveMiniGames, marketedComingMiniGames } from "./catalog.js";
 
 export default function GameModal({
   open,
@@ -12,7 +12,7 @@ export default function GameModal({
   if (!open) return null;
 
   const live = liveMiniGames();
-  const coming = comingMiniGames();
+  const coming = marketedComingMiniGames();
 
   return (
     <div className="game-modal-backdrop" onClick={onClose}>
@@ -59,16 +59,20 @@ export default function GameModal({
           ))}
         </div>
 
-        <p className="game-modal-section-label">Coming soon</p>
-        <div className="game-card-grid game-card-grid--soon">
-          {coming.map((game) => (
-            <div key={game.id} className="game-card game-card--soon">
-              <span className="game-card-emoji">{game.emoji}</span>
-              <strong>{game.name}</strong>
-              <small>{game.description}</small>
+        {coming.length > 0 && (
+          <>
+            <p className="game-modal-section-label">Coming soon</p>
+            <div className="game-card-grid game-card-grid--soon">
+              {coming.map((game) => (
+                <div key={game.id} className="game-card game-card--soon">
+                  <span className="game-card-emoji">{game.emoji}</span>
+                  <strong>{game.name}</strong>
+                  <small>{game.description}</small>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
