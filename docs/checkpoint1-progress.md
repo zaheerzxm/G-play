@@ -10,9 +10,9 @@
 | FB | Commit | Notes |
 |----|--------|-------|
 | FB-001 | `20b101f` | BFF To Unlock |
-| FB-009 | `8dbdbca` | Privacy settings screen |
 | FB-002 | `e3456bb` | Chat Bubble shop |
-| FB-003 | — | Clan chest / store / gacha (Phase A+B) |
+| FB-003 | `76dfb01` | Clan chest / store / gacha (Phase A+B) |
+| FB-009 | `8dbdbca` | Privacy settings screen |
 
 ### Hardening
 
@@ -35,10 +35,10 @@
 
 ### Completed
 
-- FB-001
-- FB-002
-- FB-003
-- FB-009
+- FB-001 (`20b101f`)
+- FB-002 (`e3456bb`)
+- FB-003 (`76dfb01`)
+- FB-009 (`8dbdbca`)
 
 ### Remaining
 
