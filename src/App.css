@@ -19617,6 +19617,11 @@ body {
   background: linear-gradient(145deg, #e0e7ff, #ddd6fe);
 }
 
+.G-play-module-icon--group {
+  color: #0f766e;
+  background: linear-gradient(145deg, #ccfbf1, #a7f3d0);
+}
+
 .G-play-chat-row {
   display: flex;
   align-items: center;
@@ -25178,6 +25183,69 @@ button.G-play-chat-row {
   margin: 0 1rem 0.75rem;
 }
 
+.group-chat-peer {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.group-chat-peer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.group-chat-members-toggle {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.75rem;
+  color: #64748b;
+  cursor: pointer;
+  text-align: left;
+}
+
+.group-chat-members {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem 1rem 0.65rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  max-height: 9rem;
+  overflow-y: auto;
+}
+
+.group-chat-member-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.35rem 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.group-chat-member-row em {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-style: normal;
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.group-chat-member-avatar {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 /* Shop v2 */
 .shop-sheet--v2 .shop-balance-bar {
   display: flex;
@@ -28655,6 +28723,11 @@ button.G-play-chat-row {
 .G-play-chat-tag--family {
   background: #fef9c3;
   color: #a16207;
+}
+
+.G-play-chat-tag--group {
+  background: #ccfbf1;
+  color: #0f766e;
 }
 
 .G-play-chat-header-actions {

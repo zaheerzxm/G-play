@@ -103,6 +103,73 @@ export async function loadMyGroups(userId) {
   }));
 }
 
+export async function loadGroupConversations(userId) {
+  if (!supabase || !userId) return [];
+
+  const groups = await loadMyGroups(userId);
+  if (!groups.length) return [];
+
+  const groupIds = groups.map((row) => row.group_id).filter(Boolean);
+
+  const [{ data: reads, error: readsError }, { data: messages, error: messagesError }] =
+    await Promise.all([
+      supabase
+        .from("dm_group_reads")
+        .select("group_id, last_read_message_id")
+        .eq("user_id", userId)
+        .in("group_id", groupIds),
+      supabase
+        .from("dm_group_messages")
+        .select(GROUP_MESSAGE_COLUMNS)
+        .in("group_id", groupIds)
+        .order("created_at", { ascending: false })
+        .limit(Math.max(80, groupIds.length * 10)),
+    ]);
+
+  if (readsError && !missingGroupChat(readsError)) throw readsError;
+  if (messagesError && !missingGroupChat(messagesError)) throw messagesError;
+
+  const readMap = Object.fromEntries(
+    (reads ?? []).map((row) => [row.group_id, row.last_read_message_id]),
+  );
+  const lastByGroup = new Map();
+  for (const msg of messages ?? []) {
+    if (!lastByGroup.has(msg.group_id)) lastByGroup.set(msg.group_id, msg);
+  }
+
+  const senderIds = [...new Set([...lastByGroup.values()].map((msg) => msg.sender_id))];
+  const profiles = await loadProfilesForUserIds(senderIds);
+
+  const rows = groups.map((row) => {
+    const lastMessageRaw = lastByGroup.get(row.group_id) ?? null;
+    const lastMessage = lastMessageRaw
+      ? { ...lastMessageRaw, profile: profiles[lastMessageRaw.sender_id] ?? null }
+      : null;
+    const lastReadId = readMap[row.group_id];
+    let unread = 0;
+    if (lastMessage && lastMessage.sender_id !== userId) {
+      if (lastReadId == null || Number(lastMessage.id) > Number(lastReadId)) unread = 1;
+    }
+
+    return {
+      groupId: row.group_id,
+      group: row.group,
+      role: row.role,
+      members: row.members,
+      lastMessage,
+      unread,
+    };
+  });
+
+  rows.sort((a, b) => {
+    const ta = a.lastMessage?.created_at ?? a.group?.created_at ?? "";
+    const tb = b.lastMessage?.created_at ?? b.group?.created_at ?? "";
+    return tb.localeCompare(ta);
+  });
+
+  return rows;
+}
+
 export async function loadGroupMessages(groupId, userId, limit = 80) {
   if (!supabase || !groupId || !userId) return [];
 

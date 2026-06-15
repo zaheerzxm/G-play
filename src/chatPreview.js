@@ -2,9 +2,25 @@ import { parseRoomInvite, parseClanInvite } from "./privateChat.js";
 import { formatClanChatPreview } from "./clanChatMessages.js";
 import { looksLikeGiftSystemMessage } from "./gifts.js";
 
-export function formatChatPreview(message, { senderName, clanMessage } = {}) {
+export function formatGroupChatPreview(lastMessage, { senderName } = {}) {
+  if (!lastMessage) return "Group chat";
+  const raw = String(lastMessage.message ?? "").trim();
+  const body = raw || "Group chat";
+  const name = senderName?.trim();
+  if (name) return `${name}: ${body}`;
+  return body;
+}
+
+export function formatChatPreview(message, { senderName, clanMessage, groupMessage } = {}) {
   if (clanMessage) {
     return formatClanChatPreview(clanMessage, { senderName });
+  }
+  if (groupMessage) {
+    const groupSender =
+      senderName
+      ?? groupMessage.profile?.display_name
+      ?? (groupMessage.sender_id ? "Member" : "");
+    return formatGroupChatPreview(groupMessage, { senderName: groupSender });
   }
   if (!message) return "";
   const raw = String(message).trim();

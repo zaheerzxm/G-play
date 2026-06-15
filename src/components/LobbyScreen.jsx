@@ -4,7 +4,9 @@ import { markAllConversationsRead } from "../privateChat.js";
 import { formatChatPreview, chatRowTags } from "../chatPreview.js";
 import { loadDmMuted } from "../dmChatPrefs.js";
 import { loadClanChatThread, loadClanByCode } from "../clans.js";
+import { loadGroupConversations } from "../groupChat.js";
 import ClanChat from "./ClanChat.jsx";
+import GroupChat from "./GroupChat.jsx";
 import {
   createPersonalRoom,
   createTempPartyRoom,
@@ -125,6 +127,8 @@ export default function LobbyScreen({
   const [clanChatClan, setClanChatClan] = useState(null);
   const [initialClanCode, setInitialClanCode] = useState("");
   const [clanChatThread, setClanChatThread] = useState(null);
+  const [groupConversations, setGroupConversations] = useState([]);
+  const [groupChatConversation, setGroupChatConversation] = useState(null);
   const [partyBusy, setPartyBusy] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [mutualFriends, setMutualFriends] = useState([]);
@@ -209,6 +213,7 @@ export default function LobbyScreen({
       if (document.hidden) return;
 
       const snapshot = await loadLobbySocialSnapshot(userId).catch(() => null);
+      const nextGroups = await loadGroupConversations(userId).catch(() => []);
       if (!active || !snapshot) return;
 
       setConversations(snapshot.conversations);
@@ -217,6 +222,7 @@ export default function LobbyScreen({
       setExploreUsers(snapshot.onlineFriends.slice(0, 12));
       setPendingRequestUsers(snapshot.pendingRequestUsers);
       setPendingRequests(snapshot.pendingRequestUsers.length);
+      setGroupConversations(nextGroups ?? []);
 
       if (tab === "chats") {
         const nextClanThread = await loadClanChatThread(userId).catch(() => null);
@@ -292,8 +298,10 @@ export default function LobbyScreen({
         ? "No popular rooms right now — check back later"
         : "No rooms yet — tap + to create one";
   const unreadCount = useMemo(
-    () => conversations.reduce((sum, row) => sum + (row.unread || 0), 0),
-    [conversations],
+    () =>
+      conversations.reduce((sum, row) => sum + (row.unread || 0), 0)
+      + groupConversations.reduce((sum, row) => sum + (row.unread || 0), 0),
+    [conversations, groupConversations],
   );
   const claimableTasks = useMemo(
     () =>
@@ -363,6 +371,7 @@ export default function LobbyScreen({
   function openDirectChat(friend) {
     setFriendsOpen(false);
     setClanChatClan(null);
+    setGroupChatConversation(null);
     setPlayerCardFriend(null);
     setChatFriend(friend);
   }
@@ -375,8 +384,23 @@ export default function LobbyScreen({
   function openClanChat(clan) {
     if (!clan?.id) return;
     setChatFriend(null);
+    setGroupChatConversation(null);
     setClanChatClan(clan);
     setTab("chats");
+  }
+
+  function openGroupChat(conversation) {
+    if (!conversation?.groupId) return;
+    setChatFriend(null);
+    setClanChatClan(null);
+    setGroupChatConversation(conversation);
+    setTab("chats");
+  }
+
+  async function refreshGroupConversations() {
+    const rows = await loadGroupConversations(userId).catch(() => []);
+    setGroupConversations(rows);
+    return rows;
   }
 
   async function handleClanJoined(clan) {
@@ -955,6 +979,33 @@ export default function LobbyScreen({
                   onOpenChat={() => openClanChat(clanChatThread.clan)}
                 />
               )}
+              {groupConversations.map((row) => (
+                <ChatListRow
+                  key={row.groupId}
+                  friend={{
+                    id: row.groupId,
+                    display_name: row.group?.name ?? "Group",
+                  }}
+                  preview={
+                    formatChatPreview(row.lastMessage?.message, {
+                      groupMessage: row.lastMessage,
+                      senderName:
+                        row.lastMessage?.sender_id === userId
+                          ? "You"
+                          : row.lastMessage?.profile?.display_name,
+                    }) || "Group chat"
+                  }
+                  timestamp={row.lastMessage?.created_at ?? row.group?.created_at}
+                  unread={row.unread}
+                  tags={[{ key: "group", label: "Group" }]}
+                  avatarSlot={(
+                    <span className="G-play-module-icon G-play-module-icon--group" aria-hidden>
+                      <IconOnlineFriends />
+                    </span>
+                  )}
+                  onOpenChat={() => openGroupChat(row)}
+                />
+              ))}
                 {conversations.map(({ friend, lastMessage, unread }) => (
                   <ChatListRow
                     key={friend.id}
@@ -973,7 +1024,7 @@ export default function LobbyScreen({
                     onOpenProfile={openPlayerCard}
                   />
                 ))}
-                {conversations.length === 0 && !clanChatThread?.clan &&
+                {conversations.length === 0 && !clanChatThread?.clan && groupConversations.length === 0 &&
                   mutualFriends.map((friend) => (
                     <ChatListRow
                       key={friend.id}
@@ -983,7 +1034,7 @@ export default function LobbyScreen({
                       onOpenProfile={openPlayerCard}
                     />
                   ))}
-              {conversations.length === 0 && !clanChatThread?.clan && mutualFriends.length === 0 && (
+              {conversations.length === 0 && !clanChatThread?.clan && groupConversations.length === 0 && mutualFriends.length === 0 && (
                 <p className="G-play-empty">No chats yet — tap + to find a player</p>
               )}
             </div>
@@ -1117,6 +1168,29 @@ export default function LobbyScreen({
           onClose={() => {
             setClanChatClan(null);
             refreshClanChatThread();
+          }}
+          onOpenProfile={(member) => {
+            if (!member?.user_id && !member?.id) return;
+            openPlayerCard({
+              id: member.user_id ?? member.id,
+              display_name: member.profile?.display_name ?? member.display_name,
+              avatar_url: member.profile?.avatar_url ?? member.avatar_url,
+              user_code: member.profile?.user_code ?? member.user_code,
+            });
+          }}
+          onToast={showToast}
+        />
+      )}
+
+      {groupChatConversation && (
+        <GroupChat
+          group={groupChatConversation.group}
+          members={groupChatConversation.members ?? []}
+          userId={userId}
+          displayName={profile.display_name}
+          onClose={() => {
+            setGroupChatConversation(null);
+            refreshGroupConversations();
           }}
           onOpenProfile={(member) => {
             if (!member?.user_id && !member?.id) return;
