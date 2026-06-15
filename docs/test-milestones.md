@@ -26,7 +26,7 @@
 
 | Checkpoint | FB range | Items | Critical | High | Medium | Low | Status |
 |------------|----------|------:|---------:|-----:|-------:|----:|--------|
-| **1** | FB-001 – FB-010 | 10 | 10 | 0 | 0 | 0 | **In progress** (2/10 implemented) |
+| **1** | FB-001 – FB-010 | 10 | 10 | 0 | 0 | 0 | **In progress** (3/10 implemented) |
 | **2** | FB-011 – FB-025 | 15 | 0 | 15 | 0 | 0 | Not started |
 | **3** | FB-026 – FB-050 | 25 | 0 | 25 | 0 | 0 | Not started |
 | **4** | FB-051 – FB-085 | 35 | 0 | 1 | 33 | 1 | Not started |
@@ -50,15 +50,15 @@
 | FB-002 | Chat Bubble shop | Not Started | — |
 | FB-003 | Clan chest / store / gacha | Not Started | — |
 | FB-004 | Clan group chat message types | Not Started | — |
-| FB-005 | Create Group DM | Not Started | — |
+| FB-005 | Create Group DM | **Completed** | `0e6d385` (+ `5b115aa`, `1701510`, `52cadef`) |
 | FB-006 | Drawing widget overlay | Not Started | — |
 | FB-007 | Family Fund donation flow | Not Started | — |
 | FB-008 | Lobby games catalog | Not Started | — |
 | FB-009 | Privacy settings screen | **Completed** | `8dbdbca` (+ hardening `d546f78`) |
 | FB-010 | UNO / Ludo / lobby games | Not Started | — |
 
-**Implemented:** 2 / 10  
-**Checkpoint passed:** ☐ No — manual tests not executed for completed items; 8 items remain.
+**Implemented:** 3 / 10  
+**Checkpoint passed:** ☐ No — manual tests not executed for completed items; 7 items remain.
 
 ### Features affected
 
@@ -76,7 +76,8 @@
 |-----------|-----|--------|
 | `supabase/privacy-settings-migration.sql` | FB-009 | **Required now** |
 | `supabase/bff-slots-migration.sql` | FB-001 | **Required now** (re-run after `d546f78` for RPC hardening) |
-| TBD per item | FB-002 – FB-010 | Add rows here as each item ships |
+| `supabase/group-dm-migration.sql` | FB-005 | **Required now** |
+| TBD per item | FB-002 – FB-004, FB-006 – FB-010 | Add rows here as each item ships |
 
 Apply migrations in Supabase SQL Editor before checkpoint manual testing. See [`manual-migrations-required.md`](./manual-migrations-required.md).
 
@@ -121,10 +122,18 @@ Use [`manual-test-plan-fb001-fb009.md`](./manual-test-plan-fb001-fb009.md) § FB
 - Structured gift cards render in clan chat
 - Admin badges visible on admin messages
 
-#### FB-005 — Create Group DM *(when implemented)*
+#### FB-005 — Create Group DM *(implemented)*
+
+Implementation complete (Phases A–D: `5b115aa`, `1701510`, `52cadef`, `0e6d385`). Run `supabase/group-dm-migration.sql` before testing.
+
+**Manual validation:** ☐ **Pending — not executed** (marked Completed from implementation review only; build passes).
+
+Key cases (when tested):
 
 - Create group from chat settings with 3+ members
+- Post-create opens GroupChat; group appears in Chats list
 - Messages deliver to all members; member list accurate
+- 1:1 DM regression
 
 #### FB-006 — Drawing widget overlay *(when implemented)*
 

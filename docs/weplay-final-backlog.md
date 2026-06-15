@@ -111,9 +111,9 @@
 **Dependencies:** None  
 **Complexity:** XL  
 **Lineage:** GAP-039a  
-**Status:** In Progress  
-**Implemented In:** —  
-**Testing Notes:** Phase A: `supabase/group-dm-migration.sql` + `src/groupChat.js` (schema, RPCs, API). UI deferred to later phases.  
+**Status:** Completed  
+**Implemented In:** 0e6d385 / 2026-06-14  
+**Testing Notes:** Phases A–D: `5b115aa` (schema/API + `supabase/group-dm-migration.sql`), `1701510` (create UI), `52cadef` (inbox/thread), `0e6d385` (post-create navigation). Create group from 1:1 chat settings (≥3 members); Chats inbox row; GroupChat send/receive (polling); read-only member list with owner badge. Run `supabase/group-dm-migration.sql` before manual testing. **Manual smoke validation: pending — not executed** (implementation review + build pass only).  
 
 ---
 
