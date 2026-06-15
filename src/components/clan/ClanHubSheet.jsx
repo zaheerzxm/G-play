@@ -165,6 +165,7 @@ export default function ClanHubSheet({
                   clan={clanData}
                   userId={userId}
                   activenessPct={activenessPct}
+                  isSuperAdmin={isSuperAdmin}
                   onInvite={() => setInviteOpen(true)}
                   onJoinClanRoom={onJoinClanRoom}
                   onCoinsChange={onCoinsChange}

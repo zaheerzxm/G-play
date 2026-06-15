@@ -75,9 +75,9 @@
 **Dependencies:** None  
 **Complexity:** XL  
 **Lineage:** GAP-084  
-**Status:** In Progress  
+**Status:** Completed  
 **Implemented In:** —  
-**Testing Notes:** Phase A completed: clan economy migration (`supabase/clan-economy-migration.sql`), `donate_to_clan`, `open_clan_chest`, Clan Donate sheet, Clan Chest sheet, treasury refresh. Store/Gacha deferred to Phase B. Run migration before testing.  
+**Testing Notes:** Phase A+B: run `supabase/clan-economy-migration.sql` (donate, chests, store, gacha). Donate increases `fund` + `clan_coins`. Store/gacha spend `clan_coins` only (leaders, deputies, admins, super admin). Members can view store/gacha/treasury but see "Only clan leaders can spend clan treasury" when blocked. Chest rewards use personal wallet coins. Treasury refreshes after donate/spend. No FB-004/007 dependency.  
 
 ---
 

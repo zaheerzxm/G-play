@@ -85,7 +85,7 @@ as $$
 declare
   uid uuid := auth.uid();
   amount bigint := floor(coalesce(p_amount, 0));
-  week_key text := public.clan_week_key();
+  v_week_key text := public.clan_week_key();
   wallet_coins bigint;
   new_wallet bigint;
   clan_row clans%rowtype;
@@ -147,7 +147,7 @@ begin
   returning * into clan_row;
 
   insert into clan_member_weekly_stats (user_id, clan_id, week_key, donated)
-  values (uid, p_clan_id, week_key, amount)
+  values (uid, p_clan_id, v_week_key, amount)
   on conflict (user_id, clan_id, week_key)
   do update set donated = clan_member_weekly_stats.donated + excluded.donated
   returning donated into weekly_donated;
@@ -290,3 +290,324 @@ end;
 $$;
 
 grant execute on function public.open_clan_chest(uuid, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Phase B: clan store + gacha (spend clan_coins; leaders/deputies/admins only)
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.clan_store_purchases (
+  id uuid primary key default gen_random_uuid(),
+  clan_id uuid not null references public.clans(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  item_id text not null,
+  clan_coins_spent int not null check (clan_coins_spent > 0),
+  reward jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (user_id, item_id)
+);
+
+create index if not exists idx_clan_store_purchases_clan on public.clan_store_purchases(clan_id, created_at desc);
+
+create table if not exists public.clan_gacha_pulls (
+  id uuid primary key default gen_random_uuid(),
+  clan_id uuid not null references public.clans(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  pull_count int not null check (pull_count in (1, 10)),
+  clan_coins_spent int not null check (clan_coins_spent > 0),
+  rewards jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_clan_gacha_pulls_clan on public.clan_gacha_pulls(clan_id, created_at desc);
+
+alter table public.clan_store_purchases enable row level security;
+alter table public.clan_gacha_pulls enable row level security;
+
+drop policy if exists "clan_store_purchases read own" on public.clan_store_purchases;
+create policy "clan_store_purchases read own"
+  on public.clan_store_purchases for select
+  using (user_id = auth.uid());
+
+drop policy if exists "clan_gacha_pulls read own" on public.clan_gacha_pulls;
+create policy "clan_gacha_pulls read own"
+  on public.clan_gacha_pulls for select
+  using (user_id = auth.uid());
+
+create or replace function public.can_spend_clan_treasury(p_clan_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    coalesce((select p.is_super_admin from public.profiles p where p.id = auth.uid()), false)
+    or coalesce(public.clan_member_role(p_clan_id) in ('leader', 'deputy', 'admin'), false);
+$$;
+
+create or replace function public.grant_gift_inventory(
+  p_user_id uuid,
+  p_gift_id text,
+  p_qty int,
+  p_expires_days int default 7
+)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  have int;
+  next_qty int;
+  exp_at timestamptz := now() + make_interval(days => p_expires_days);
+begin
+  select quantity into have
+  from public.gift_inventory
+  where user_id = p_user_id and gift_id = p_gift_id
+  for update;
+
+  if found then
+    next_qty := have + p_qty;
+    update public.gift_inventory
+    set quantity = next_qty, expires_at = exp_at
+    where user_id = p_user_id and gift_id = p_gift_id;
+  else
+    next_qty := p_qty;
+    insert into public.gift_inventory (user_id, gift_id, quantity, expires_at)
+    values (p_user_id, p_gift_id, p_qty, exp_at);
+  end if;
+
+  return next_qty;
+end;
+$$;
+
+create or replace function public.clan_gacha_roll_reward()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r double precision := random();
+begin
+  if r < 0.55 then
+    return jsonb_build_object('type', 'coins', 'amount', 15 + floor(random() * 16)::int);
+  elsif r < 0.80 then
+    return jsonb_build_object('type', 'gift', 'gift_id', 'pkg_rose', 'quantity', 1);
+  elsif r < 0.92 then
+    return jsonb_build_object('type', 'gift', 'gift_id', 'pkg_heart', 'quantity', 1);
+  elsif r < 0.98 then
+    return jsonb_build_object(
+      'type', 'clan_item',
+      'item_id', 'clan_gacha_frame',
+      'name', 'Clan Gacha Frame',
+      'emoji', '🖼️'
+    );
+  else
+    return jsonb_build_object('type', 'coins', 'amount', 200);
+  end if;
+end;
+$$;
+
+create or replace function public.purchase_clan_store_item(p_clan_id uuid, p_item_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  clan_row public.clans%rowtype;
+  price int;
+  reward jsonb;
+  one_time boolean := false;
+  new_wallet int;
+  new_qty int;
+begin
+  if uid is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  if not public.is_clan_member(p_clan_id) then
+    raise exception 'Not a clan member';
+  end if;
+
+  if not public.can_spend_clan_treasury(p_clan_id) then
+    raise exception 'Only clan leaders can spend clan treasury';
+  end if;
+
+  case p_item_id
+    when 'clan_store_badge_honor' then
+      price := 500; one_time := true;
+      reward := jsonb_build_object('type', 'clan_item', 'item_id', p_item_id, 'name', 'Honor Badge', 'emoji', '🏅');
+    when 'clan_store_badge_unity' then
+      price := 400; one_time := true;
+      reward := jsonb_build_object('type', 'clan_item', 'item_id', p_item_id, 'name', 'Unity Badge', 'emoji', '🤝');
+    when 'clan_store_frame' then
+      price := 1200; one_time := true;
+      reward := jsonb_build_object('type', 'clan_item', 'item_id', p_item_id, 'name', 'Clan Frame', 'emoji', '🖼️');
+    when 'clan_store_flag' then
+      price := 800; one_time := true;
+      reward := jsonb_build_object('type', 'clan_item', 'item_id', p_item_id, 'name', 'Clan Flag', 'emoji', '🚩');
+    when 'clan_store_gift_rose' then
+      price := 350;
+      reward := jsonb_build_object('type', 'gift', 'gift_id', 'pkg_rose', 'quantity', 3);
+    when 'clan_store_gift_heart' then
+      price := 450;
+      reward := jsonb_build_object('type', 'gift', 'gift_id', 'pkg_heart', 'quantity', 3);
+    when 'clan_store_boost' then
+      price := 1000;
+      reward := jsonb_build_object('type', 'clan_item', 'item_id', p_item_id, 'name', 'Clan Boost', 'emoji', '⚡');
+    else
+      raise exception 'Unknown store item';
+  end case;
+
+  if one_time and exists (
+    select 1 from public.clan_store_purchases
+    where user_id = uid and item_id = p_item_id
+  ) then
+    raise exception 'Already purchased';
+  end if;
+
+  select * into clan_row from public.clans where id = p_clan_id for update;
+  if not found then
+    raise exception 'Clan not found';
+  end if;
+
+  if coalesce(clan_row.clan_coins, 0) < price then
+    raise exception 'Not enough clan coins';
+  end if;
+
+  update public.clans
+  set clan_coins = clan_coins - price
+  where id = p_clan_id;
+
+  insert into public.clan_economy_ledger (
+    clan_id, user_id, kind, clan_coins_delta, fund_delta, meta
+  ) values (
+    p_clan_id, uid, 'store', -price, 0,
+    jsonb_build_object('item_id', p_item_id, 'reward', reward)
+  );
+
+  insert into public.clan_store_purchases (clan_id, user_id, item_id, clan_coins_spent, reward)
+  values (p_clan_id, uid, p_item_id, price, reward);
+
+  if reward->>'type' = 'gift' then
+    perform public.grant_gift_inventory(
+      uid,
+      reward->>'gift_id',
+      (reward->>'quantity')::int
+    );
+  elsif reward->>'type' = 'coins' then
+    update public.profiles
+    set coins = coalesce(coins, 0) + (reward->>'amount')::int
+    where id = uid
+    returning coins into new_wallet;
+  end if;
+
+  return jsonb_build_object(
+    'item_id', p_item_id,
+    'clan_coins_spent', price,
+    'clan_coins', clan_row.clan_coins - price,
+    'fund', clan_row.fund,
+    'reward', reward,
+    'new_balance', new_wallet
+  );
+end;
+$$;
+
+create or replace function public.pull_clan_gacha(p_clan_id uuid, p_count int default 1)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  clan_row public.clans%rowtype;
+  pull_count int;
+  cost int;
+  rewards jsonb := '[]'::jsonb;
+  i int;
+  rolled jsonb;
+  new_wallet int;
+  wallet_delta int := 0;
+begin
+  if uid is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  if not public.is_clan_member(p_clan_id) then
+    raise exception 'Not a clan member';
+  end if;
+
+  if not public.can_spend_clan_treasury(p_clan_id) then
+    raise exception 'Only clan leaders can spend clan treasury';
+  end if;
+
+  pull_count := greatest(1, least(10, coalesce(p_count, 1)));
+  if pull_count not in (1, 10) then
+    raise exception 'Invalid pull count';
+  end if;
+
+  cost := case when pull_count = 10 then 4500 else 500 * pull_count end;
+
+  select * into clan_row from public.clans where id = p_clan_id for update;
+  if not found then
+    raise exception 'Clan not found';
+  end if;
+
+  if coalesce(clan_row.clan_coins, 0) < cost then
+    raise exception 'Not enough clan coins';
+  end if;
+
+  update public.clans
+  set clan_coins = clan_coins - cost
+  where id = p_clan_id;
+
+  insert into public.clan_economy_ledger (
+    clan_id, user_id, kind, clan_coins_delta, fund_delta, meta
+  ) values (
+    p_clan_id, uid, 'gacha', -cost, 0,
+    jsonb_build_object('pull_count', pull_count)
+  );
+
+  for i in 1..pull_count loop
+    rolled := public.clan_gacha_roll_reward();
+    rewards := rewards || jsonb_build_array(rolled);
+
+    if rolled->>'type' = 'gift' then
+      perform public.grant_gift_inventory(
+        uid,
+        rolled->>'gift_id',
+        (rolled->>'quantity')::int
+      );
+    elsif rolled->>'type' = 'coins' then
+      wallet_delta := wallet_delta + (rolled->>'amount')::int;
+    end if;
+  end loop;
+
+  if wallet_delta > 0 then
+    update public.profiles
+    set coins = coalesce(coins, 0) + wallet_delta
+    where id = uid
+    returning coins into new_wallet;
+  end if;
+
+  insert into public.clan_gacha_pulls (clan_id, user_id, pull_count, clan_coins_spent, rewards)
+  values (p_clan_id, uid, pull_count, cost, rewards);
+
+  return jsonb_build_object(
+    'pull_count', pull_count,
+    'clan_coins_spent', cost,
+    'clan_coins', clan_row.clan_coins - cost,
+    'fund', clan_row.fund,
+    'rewards', rewards,
+    'new_balance', new_wallet
+  );
+end;
+$$;
+
+grant execute on function public.can_spend_clan_treasury(uuid) to authenticated;
+grant execute on function public.purchase_clan_store_item(uuid, text) to authenticated;
+grant execute on function public.pull_clan_gacha(uuid, int) to authenticated;

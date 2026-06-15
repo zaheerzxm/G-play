@@ -15,19 +15,22 @@ import {
 } from "../NavIcons.jsx";
 import AvatarImg from "../AvatarImg.jsx";
 import ClanChestSheet from "./ClanChestSheet.jsx";
+import ClanStoreSheet from "./ClanStoreSheet.jsx";
+import ClanGachaSheet from "./ClanGachaSheet.jsx";
 
 const WEEKLY_GIFT_MILESTONES = [10000, 30000, 60000, 100000];
 
 const PERK_ITEMS = [
   { key: "chests", Icon: IconChest, label: "Clan Chests", hint: "Activeness rewards" },
-  { key: "store", Icon: IconShop, label: "Clan Store", hint: "Coming in phase B" },
-  { key: "gacha", Icon: IconGacha, label: "Clan Gacha", hint: "Coming in phase B" },
+  { key: "store", Icon: IconShop, label: "Clan Store", hint: "Spend clan coins" },
+  { key: "gacha", Icon: IconGacha, label: "Clan Gacha", hint: "Treasury gacha" },
 ];
 
 export default function ClanProfileTab({
   clan,
   userId,
   activenessPct,
+  isSuperAdmin = false,
   onInvite,
   onJoinClanRoom,
   onCoinsChange,
@@ -40,6 +43,8 @@ export default function ClanProfileTab({
   const [weeklyBusy, setWeeklyBusy] = useState(null);
   const [roomBusy, setRoomBusy] = useState(false);
   const [chestOpen, setChestOpen] = useState(false);
+  const [storeOpen, setStoreOpen] = useState(false);
+  const [gachaOpen, setGachaOpen] = useState(false);
   const [chestGroup, setChestGroup] = useState("activeness");
   const [treasury, setTreasury] = useState({
     fund: clan.fund ?? 0,
@@ -100,8 +105,12 @@ export default function ClanProfileTab({
       openChests("activeness");
       return;
     }
-    if (key === "store" || key === "gacha") {
-      onToast?.("Coming in phase B — earn Clan Coins via Donate first");
+    if (key === "store") {
+      setStoreOpen(true);
+      return;
+    }
+    if (key === "gacha") {
+      setGachaOpen(true);
       return;
     }
   }
@@ -259,6 +268,32 @@ export default function ClanProfileTab({
           onToast={onToast}
           onCoinsChange={onCoinsChange}
           onClaimed={handleTreasuryRefresh}
+        />
+      )}
+
+      {storeOpen && (
+        <ClanStoreSheet
+          clan={clan}
+          userId={userId}
+          myRole={clan.membership?.role}
+          isSuperAdmin={isSuperAdmin}
+          onClose={() => setStoreOpen(false)}
+          onToast={onToast}
+          onCoinsChange={onCoinsChange}
+          onPurchased={handleTreasuryRefresh}
+        />
+      )}
+
+      {gachaOpen && (
+        <ClanGachaSheet
+          clan={clan}
+          userId={userId}
+          myRole={clan.membership?.role}
+          isSuperAdmin={isSuperAdmin}
+          onClose={() => setGachaOpen(false)}
+          onToast={onToast}
+          onCoinsChange={onCoinsChange}
+          onPulled={handleTreasuryRefresh}
         />
       )}
     </div>

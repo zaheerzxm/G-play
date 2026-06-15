@@ -24416,6 +24416,166 @@ button.G-play-chat-row {
   text-align: center;
 }
 
+.clan-store-sheet .clan-store-treasury,
+.clan-gacha-sheet .clan-store-treasury {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 1rem 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.65rem;
+  background: #f3f4f6;
+  font-size: 0.8125rem;
+}
+
+.clan-store-sheet .clan-store-treasury strong,
+.clan-gacha-sheet .clan-store-treasury strong {
+  font-size: 0.9375rem;
+  color: #111827;
+}
+
+.clan-spend-blocked {
+  margin: 0 1rem 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.5rem;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.clan-store-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  padding: 0 1rem 0.75rem;
+}
+
+.clan-store-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.65rem 0.35rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.65rem;
+  background: #fff;
+  text-align: center;
+}
+
+.clan-store-card--owned {
+  opacity: 0.65;
+}
+
+.clan-store-card-emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.clan-store-card strong {
+  font-size: 0.72rem;
+}
+
+.clan-store-card small {
+  font-size: 0.62rem;
+  color: #6b7280;
+}
+
+.clan-store-card em {
+  font-size: 0.65rem;
+  font-style: normal;
+  color: #2563eb;
+}
+
+.clan-store-card:disabled {
+  opacity: 0.55;
+}
+
+.clan-store-hint {
+  margin: 0 1rem 1rem;
+  font-size: 0.72rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.clan-gacha-preview {
+  margin: 0 1rem 0.75rem;
+}
+
+.clan-gacha-preview h3,
+.clan-gacha-results h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  color: #374151;
+}
+
+.clan-gacha-preview ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.clan-gacha-preview li {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr auto;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #4b5563;
+}
+
+.clan-gacha-preview em {
+  font-style: normal;
+  color: #9ca3af;
+  font-size: 0.68rem;
+}
+
+.clan-gacha-results {
+  margin: 0 1rem 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.55rem;
+  background: #ecfdf5;
+}
+
+.clan-gacha-results-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.clan-gacha-result-chip {
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.7rem;
+}
+
+.clan-gacha-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  padding: 0 1rem 0.75rem;
+}
+
+.clan-gacha-btn {
+  padding: 0.65rem 0.5rem;
+  border: none;
+  border-radius: 0.65rem;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.clan-gacha-btn--ten {
+  background: #7c3aed;
+}
+
+.clan-gacha-btn:disabled {
+  opacity: 0.55;
+}
+
 .clan-tasks-activeness {
   margin-bottom: 0.65rem;
 }

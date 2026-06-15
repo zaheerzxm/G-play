@@ -12,6 +12,7 @@
 | FB-001 | `20b101f` | BFF To Unlock |
 | FB-009 | `8dbdbca` | Privacy settings screen |
 | FB-002 | `e3456bb` | Chat Bubble shop |
+| FB-003 | — | Clan chest / store / gacha (Phase A+B) |
 
 ### Hardening
 
@@ -30,17 +31,17 @@
 
 ## Checkpoint 1 status
 
-**Progress: 3 / 10 completed**
+**Progress: 4 / 10 completed**
 
 ### Completed
 
 - FB-001
 - FB-002
+- FB-003
 - FB-009
 
 ### Remaining
 
-- FB-003
 - FB-004
 - FB-005
 - FB-006
