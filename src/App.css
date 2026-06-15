@@ -24927,6 +24927,145 @@ button.G-play-chat-row {
   font-size: 0.85rem;
 }
 
+.create-group-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1250;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.create-group-sheet {
+  width: min(100%, 26rem);
+  max-height: 85vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 1.1rem 1.1rem 0 0;
+  padding: 1rem 1rem 1.25rem;
+}
+
+.create-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.create-group-header h3 {
+  margin: 0;
+  flex: 1;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.create-group-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.create-group-label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.create-group-label input {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.create-group-friends-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.create-group-friends-head h4 {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.create-group-friends-head small {
+  font-size: 0.68rem;
+  color: #6b7280;
+}
+
+.create-group-friends {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  max-height: 42vh;
+  overflow: auto;
+}
+
+.create-group-friend-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.create-group-friend-row--selected {
+  border-color: #6366f1;
+  background: #eef2ff;
+}
+
+.create-group-friend-row--blocked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.create-group-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.create-group-friend-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.create-group-check {
+  width: 1.25rem;
+  text-align: center;
+  color: #4f46e5;
+  font-weight: 800;
+}
+
+.create-group-empty {
+  padding: 0.75rem 0;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.8rem;
+}
+
+.create-group-submit {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
 .clan-chat-backdrop {
   position: fixed;
   inset: 0;

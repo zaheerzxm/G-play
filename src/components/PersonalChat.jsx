@@ -38,6 +38,7 @@ import UserFullProfileSheet from "./UserFullProfileSheet.jsx";
 import GiftWallSheet from "./GiftWallSheet.jsx";
 import RedPacketSheet from "./RedPacketSheet.jsx";
 import ChatSettingsSheet from "./ChatSettingsSheet.jsx";
+import CreateGroupSheet from "./CreateGroupSheet.jsx";
 import { loadProfilesForUserIds } from "../profile.js";
 import { markGameTaskProgress } from "../gameTasks.js";
 import { bondMeta, loadBondBetween, relationshipLevelProgress } from "../relationships.js";
@@ -106,6 +107,7 @@ export default function PersonalChat({
   const [giftTab, setGiftTab] = useState("Gift");
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [giftWallOpen, setGiftWallOpen] = useState(false);
   const [redPacketOpen, setRedPacketOpen] = useState(false);
   const [peerProfile, setPeerProfile] = useState(null);
@@ -754,8 +756,21 @@ export default function PersonalChat({
             setSettingsOpen(false);
             setProfileOpen(true);
           }}
+          onOpenCreateGroup={() => {
+            setSettingsOpen(false);
+            setCreateGroupOpen(true);
+          }}
           onToast={(msg) => setError(msg)}
           onBlocked={onClose}
+        />
+      )}
+
+      {createGroupOpen && (
+        <CreateGroupSheet
+          userId={userId}
+          preselectedFriendId={friend?.id}
+          onClose={() => setCreateGroupOpen(false)}
+          onToast={(msg) => setError(msg)}
         />
       )}
 

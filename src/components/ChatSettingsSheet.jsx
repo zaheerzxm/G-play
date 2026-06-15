@@ -57,6 +57,7 @@ export default function ChatSettingsSheet({
   peerProfile,
   onClose,
   onOpenProfile,
+  onOpenCreateGroup,
   onToast,
   onBlocked,
 }) {
@@ -154,7 +155,7 @@ export default function ChatSettingsSheet({
           <section className="chat-settings-group">
             <SettingsRow
               label="Create Group"
-              onClick={() => onToast?.("Create Group — coming soon (stub)")}
+              onClick={() => onOpenCreateGroup?.()}
             />
             <SettingsRow
               label="Choose a background"
