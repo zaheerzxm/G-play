@@ -76,7 +76,7 @@
 |-----------|-----|--------|
 | `supabase/privacy-settings-migration.sql` | FB-009 | **Required now** |
 | `supabase/bff-slots-migration.sql` | FB-001 | **Required now** (re-run after `d546f78` for RPC hardening) |
-| `supabase/group-dm-migration.sql` | FB-005 | **Required now** |
+| `supabase/group-dm-migration.sql` | FB-005 | **Applied** |
 | TBD per item | FB-002 – FB-004, FB-006 – FB-010 | Add rows here as each item ships |
 
 Apply migrations in Supabase SQL Editor before checkpoint manual testing. See [`manual-migrations-required.md`](./manual-migrations-required.md).
@@ -122,18 +122,22 @@ Use [`manual-test-plan-fb001-fb009.md`](./manual-test-plan-fb001-fb009.md) § FB
 - Structured gift cards render in clan chat
 - Admin badges visible on admin messages
 
-#### FB-005 — Create Group DM *(implemented)*
+#### FB-005 — Create Group DM *(implemented — signed off)*
 
-Implementation complete (Phases A–D: `5b115aa`, `1701510`, `52cadef`, `0e6d385`). Run `supabase/group-dm-migration.sql` before testing.
+Implementation complete (Phases A–D: `5b115aa`, `1701510`, `52cadef`, `0e6d385`). Migration `supabase/group-dm-migration.sql` applied.
 
-**Manual validation:** ☐ **Pending — not executed** (marked Completed from implementation review only; build passes).
+**Manual validation:** ☑ **Passed — 2026-06-14**
 
-Key cases (when tested):
+Verified:
 
 - Create group from chat settings with 3+ members
-- Post-create opens GroupChat; group appears in Chats list
-- Messages deliver to all members; member list accurate
-- 1:1 DM regression
+- Post-create auto-opens GroupChat
+- Group appears in Chats list
+- Cross-member message delivery (polling)
+- Member list accurate (count, names, owner badge)
+- `npm run build` passes
+
+Not verified this pass (non-blocking for FB-005; Checkpoint 1 regression): unread badge increment/clear; 1:1 DM regression.
 
 #### FB-006 — Drawing widget overlay *(when implemented)*
 
@@ -178,7 +182,8 @@ Run after **all** FB-001–010 items are implemented and individually smoke-test
 |---------|--------|------|-----------|
 | FB-001 BFF | | | |
 | FB-009 Privacy | | | |
-| FB-002 – FB-010 | | | |
+| FB-005 Group DM | | 2026-06-14 | Pass |
+| FB-002 – FB-004, FB-006 – FB-010 | | | |
 | Regression | | | |
 | **Checkpoint 1 total** | | | |
 

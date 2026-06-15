@@ -113,7 +113,7 @@
 **Lineage:** GAP-039a  
 **Status:** Completed  
 **Implemented In:** 0e6d385 / 2026-06-14  
-**Testing Notes:** Phases A–D: `5b115aa` (schema/API + `supabase/group-dm-migration.sql`), `1701510` (create UI), `52cadef` (inbox/thread), `0e6d385` (post-create navigation). Create group from 1:1 chat settings (≥3 members); Chats inbox row; GroupChat send/receive (polling); read-only member list with owner badge. Run `supabase/group-dm-migration.sql` before manual testing. **Manual smoke validation: pending — not executed** (implementation review + build pass only).  
+**Testing Notes:** Phases A–D: `5b115aa` (schema/API + `supabase/group-dm-migration.sql`), `1701510` (create UI), `52cadef` (inbox/thread), `0e6d385` (post-create navigation). **Manual validation: passed 2026-06-14** — create group from 1:1 chat settings (≥3 members); post-create opens GroupChat; Chats inbox row; cross-member message delivery (polling); read-only member list with owner badge. Build passes. Out of scope: group settings, add/remove members, leave group.  
 
 ---
 
