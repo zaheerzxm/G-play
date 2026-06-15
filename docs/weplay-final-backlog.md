@@ -184,7 +184,7 @@
 **Complexity:** XL  
 **Lineage:** PARITY-001  
 **Status:** Completed  
-**Implemented In:** pending commit / 2026-06-14  
+**Implemented In:** 8dbdbca / 2026-06-14  
 **Testing Notes:** Privacy sheet + 9 toggles persist to profiles.privacy_settings. Enforced: incognito visit (no visitor log), hide location (others' profile), hide guardian board (others' profile). VIP V6/V7/V8 gates UI-only until level met. Other toggles persist without consumer enforcement (by design). Run supabase/privacy-settings-migration.sql before testing.  
 
 ---
