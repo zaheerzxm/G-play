@@ -28517,6 +28517,28 @@ button.G-play-chat-row {
   color: #78350f;
 }
 
+.G-play-lobby-game-tag--soon {
+  background: rgba(255, 255, 255, 0.88);
+  color: #475569;
+}
+
+.G-play-lobby-games-soon-head {
+  margin: 0.85rem 0 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.G-play-lobby-game-tile--soon {
+  opacity: 0.92;
+}
+
+.G-play-lobby-games-grid--soon .G-play-lobby-game-tile-name {
+  max-width: 58%;
+}
+
 .G-play-lobby-game-players {
   position: absolute;
   right: 0.4rem;

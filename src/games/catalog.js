@@ -56,6 +56,14 @@ export const MINI_GAMES = [
     players: "2-4",
     live: false,
   },
+  {
+    id: "jackaroo",
+    name: "Jackaroo",
+    emoji: "🦘",
+    description: "Coming soon",
+    players: "2-4",
+    live: false,
+  },
 ];
 
 export function liveMiniGames() {
