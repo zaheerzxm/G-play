@@ -991,6 +991,7 @@ export default function LobbyScreen({
             userId={userId}
             profile={profile}
             coins={coins}
+            isSuperAdmin={isSuperAdmin}
             onCoinsChange={onCoinsChange}
             onClose={() => {
               setInitialClanCode("");

@@ -75,9 +75,9 @@
 **Dependencies:** None  
 **Complexity:** XL  
 **Lineage:** GAP-084  
-**Status:** Not Started  
+**Status:** In Progress  
 **Implemented In:** —  
-**Testing Notes:** —  
+**Testing Notes:** Phase A completed: clan economy migration (`supabase/clan-economy-migration.sql`), `donate_to_clan`, `open_clan_chest`, Clan Donate sheet, Clan Chest sheet, treasury refresh. Store/Gacha deferred to Phase B. Run migration before testing.  
 
 ---
 

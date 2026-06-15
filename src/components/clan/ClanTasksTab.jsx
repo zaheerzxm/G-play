@@ -31,7 +31,7 @@ function RewardIcons({ rewards }) {
   );
 }
 
-export default function ClanTasksTab({ userId, clanId, onReward, onOpenChat, onToast }) {
+export default function ClanTasksTab({ userId, clanId, onReward, onOpenChat, onOpenDonate, onToast }) {
   const [state, setState] = useState({ progress: {}, claimed: {} });
   const [claimingId, setClaimingId] = useState(null);
 
@@ -60,9 +60,7 @@ export default function ClanTasksTab({ userId, clanId, onReward, onOpenChat, onT
   function handleGo(task) {
     if (task.id === "clan_chat") onOpenChat?.();
     else if (task.id === "clan_donate") {
-      markClanTaskProgress(userId, clanId, "clan_donate", 1);
-      loadClanTasksState(userId, clanId).then(setState);
-      onToast?.("Thanks for supporting the clan!");
+      onOpenDonate?.();
     }
   }
 

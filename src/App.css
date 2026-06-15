@@ -24219,6 +24219,203 @@ button.G-play-chat-row {
   color: #9ca3af;
 }
 
+/* Clan economy phase A (FB-003) */
+.clan-treasury-actions {
+  margin-bottom: 0.65rem;
+}
+
+.clan-donate-inline-btn {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #78350f;
+  font-weight: 800;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.clan-donate-sheet .clan-donate-body {
+  padding: 0 1rem 1.25rem;
+}
+
+.clan-donate-lead {
+  margin: 0 0 0.85rem;
+  font-size: 0.8125rem;
+  color: #4b5563;
+  line-height: 1.45;
+}
+
+.clan-donate-balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.65rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 0.8125rem;
+}
+
+.clan-donate-presets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+}
+
+.clan-donate-presets button {
+  padding: 0.5rem 0.25rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.55rem;
+  background: #fff;
+  font-weight: 700;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.clan-donate-preset--active {
+  border-color: #f59e0b !important;
+  background: #fffbeb !important;
+  color: #b45309;
+}
+
+.clan-donate-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.clan-donate-custom input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.55rem;
+  font-size: 0.875rem;
+}
+
+.clan-donate-submit {
+  width: 100%;
+  padding: 0.65rem;
+  border: none;
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.clan-donate-submit:disabled {
+  opacity: 0.6;
+}
+
+.clan-chest-sheet .clan-chest-tabs {
+  display: flex;
+  gap: 0.45rem;
+  padding: 0 1rem 0.75rem;
+}
+
+.clan-chest-tabs button {
+  flex: 1;
+  padding: 0.45rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 700;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.clan-chest-tab--active {
+  background: #ede9fe !important;
+  border-color: #a78bfa !important;
+  color: #5b21b6;
+}
+
+.clan-chest-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.clan-chest-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.75rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.clan-chest-row--claimable {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.clan-chest-row--claimed {
+  opacity: 0.72;
+}
+
+.clan-chest-row-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.clan-chest-row-copy strong {
+  display: block;
+  font-size: 0.875rem;
+}
+
+.clan-chest-row-copy p {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
+.clan-chest-reward {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #b45309;
+}
+
+.clan-chest-btn {
+  flex-shrink: 0;
+  min-width: 4.5rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.clan-chest-btn--claim {
+  border: none;
+  background: #22c55e;
+  color: #fff;
+  cursor: pointer;
+}
+
+.clan-chest-btn--locked,
+.clan-chest-btn--done {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+
+.clan-chest-hint {
+  margin: 0 1rem 1rem;
+  font-size: 0.72rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
 .clan-tasks-activeness {
   margin-bottom: 0.65rem;
 }

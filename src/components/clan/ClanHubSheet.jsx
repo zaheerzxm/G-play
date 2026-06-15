@@ -5,8 +5,10 @@ import {
   clanActivenessPercent,
   loadClanTasksState,
   loadMyClan,
+  markClanTaskProgress,
 } from "../../clans.js";
 import ClanInviteSheet from "./ClanInviteSheet.jsx";
+import ClanDonateSheet from "./ClanDonateSheet.jsx";
 import ClanLanding from "./ClanLanding.jsx";
 import ClanManageTab from "./ClanManageTab.jsx";
 import ClanMembersTab from "./ClanMembersTab.jsx";
@@ -26,6 +28,7 @@ export default function ClanHubSheet({
   userId,
   profile,
   coins,
+  isSuperAdmin = false,
   onCoinsChange,
   onClose,
   onToast,
@@ -38,6 +41,7 @@ export default function ClanHubSheet({
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("profile");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [donateOpen, setDonateOpen] = useState(false);
   const [activenessPct, setActivenessPct] = useState(0);
   const onToastRef = useRef(onToast);
   onToastRef.current = onToast;
@@ -88,6 +92,18 @@ export default function ClanHubSheet({
   function handleReward(result) {
     if (result?.newBalance != null) onCoinsChange?.(result.newBalance);
     refresh();
+  }
+
+  function handleOpenDonate() {
+    setTab("profile");
+    setDonateOpen(true);
+  }
+
+  async function handleDonated() {
+    if (userId && clanData?.id) {
+      markClanTaskProgress(userId, clanData.id, "clan_donate", 1);
+    }
+    return refresh();
   }
 
   function goToClanChat() {
@@ -153,6 +169,8 @@ export default function ClanHubSheet({
                   onJoinClanRoom={onJoinClanRoom}
                   onCoinsChange={onCoinsChange}
                   onToast={onToast}
+                  onClanRefresh={refresh}
+                  onOpenDonate={handleOpenDonate}
                 />
               )}
               {tab === "tasks" && (
@@ -161,6 +179,7 @@ export default function ClanHubSheet({
                   clanId={clanData.id}
                   onReward={handleReward}
                   onOpenChat={goToClanChat}
+                  onOpenDonate={handleOpenDonate}
                   onToast={onToast}
                 />
               )}
@@ -200,6 +219,19 @@ export default function ClanHubSheet({
           userId={userId}
           onClose={() => setInviteOpen(false)}
           onToast={onToast}
+        />
+      )}
+
+      {donateOpen && clanData && (
+        <ClanDonateSheet
+          clan={clanData}
+          userId={userId}
+          coins={coins}
+          isSuperAdmin={isSuperAdmin}
+          onClose={() => setDonateOpen(false)}
+          onToast={onToast}
+          onCoinsChange={onCoinsChange}
+          onDonated={handleDonated}
         />
       )}
     </div>
