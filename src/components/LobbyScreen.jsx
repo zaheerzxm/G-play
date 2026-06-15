@@ -940,7 +940,11 @@ export default function LobbyScreen({
                     display_name: clanChatThread.clan.name,
                     avatar_url: clanChatThread.clan.avatar_url,
                   }}
-                  preview={formatChatPreview(clanChatThread.lastMessage?.message) || "Clan group chat"}
+                  preview={
+                    formatChatPreview(clanChatThread.lastMessage?.message, {
+                      clanMessage: clanChatThread.lastMessage,
+                    }) || "Clan group chat"
+                  }
                   timestamp={clanChatThread.lastMessage?.created_at}
                   tags={[{ key: "clan", label: "Clan" }]}
                   avatarSlot={(

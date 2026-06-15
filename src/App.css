@@ -28938,6 +28938,150 @@ button.G-play-chat-row {
   color: #6b7280;
 }
 
+.clan-chat-sender-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.15rem;
+}
+
+.clan-chat-sender-row .clan-chat-sender {
+  margin-bottom: 0;
+}
+
+.clan-chat-role-badge {
+  display: inline-block;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+.clan-chat-role-badge--leader {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.clan-chat-role-badge--deputy {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.clan-chat-role-badge--admin {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.clan-chat-msg-col--card {
+  max-width: min(92%, 18rem);
+}
+
+.clan-chat-card {
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.clan-chat-card--gift {
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  border-color: #dbeafe;
+}
+
+.clan-chat-card--mine {
+  background: linear-gradient(180deg, #eef2ff 0%, #e0e7ff 100%);
+  border-color: #c7d2fe;
+}
+
+.clan-chat-gift-flavor {
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  font-style: italic;
+  color: #6b7280;
+}
+
+.clan-chat-gift-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.clan-chat-gift-icon {
+  flex-shrink: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.clan-chat-gift-icon img {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  display: block;
+}
+
+.clan-chat-gift-copy strong {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.3;
+  color: #111827;
+}
+
+.clan-chat-gift-reward {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.clan-chat-gift-footer {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  display: grid;
+  gap: 0.15rem;
+}
+
+.clan-chat-gift-footer small {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #ef4444;
+}
+
+.clan-chat-time-centered {
+  display: block;
+  margin-top: 0.25rem;
+  text-align: center;
+  font-size: 0.62rem;
+  color: #9ca3af;
+}
+
+.clan-chat-system-row {
+  display: flex;
+  justify-content: center;
+  margin: 0.35rem 0;
+}
+
+.clan-chat-system {
+  max-width: 90%;
+  text-align: center;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.68rem;
+}
+
+.clan-chat-system time {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.58rem;
+  color: #9ca3af;
+}
+
 .personal-chat-input-wrap--full {
   flex: 1;
 }

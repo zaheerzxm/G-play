@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  clanGiftDisplayFromMessage,
+  clanRoleBadgeClass,
+  clanRoleBadgeLabel,
+  clanRoleShowsBadge,
+  formatClanGiftFooter,
+} from "../clanChatMessages.js";
 import { loadClanMessages, sendClanMessage } from "../clans.js";
+import { GIFTS } from "../gifts.js";
+import { giftIconFor } from "../gplayAssets.js";
 import AvatarImg from "./AvatarImg.jsx";
 import { IconClan } from "./NavIcons.jsx";
 
@@ -8,6 +17,113 @@ function formatTime(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function ClanRoleBadge({ role }) {
+  if (!clanRoleShowsBadge(role)) return null;
+  const label = clanRoleBadgeLabel(role);
+  const className = clanRoleBadgeClass(role);
+  if (!label || !className) return null;
+  return <span className={`clan-chat-role-badge ${className}`}>{label}</span>;
+}
+
+function ClanChatSenderName({ name, role }) {
+  return (
+    <span className="clan-chat-sender-row">
+      <strong className="clan-chat-sender">{name}</strong>
+      <ClanRoleBadge role={role} />
+    </span>
+  );
+}
+
+function ClanChatGiftCard({ msg, mine, displayName }) {
+  const gift = clanGiftDisplayFromMessage(msg);
+  if (!gift) {
+    return (
+      <div className="clan-chat-card clan-chat-card--gift clan-chat-card--fallback">
+        <span className="personal-chat-text">{msg.message}</span>
+      </div>
+    );
+  }
+
+  const baseName = gift.giftName.replace(/\s+x\d+$/i, "").trim();
+  const giftMeta = GIFTS.find(
+    (g) => g.name === baseName || g.name.startsWith(baseName.split(" ")[0]),
+  );
+  const icon = giftIconFor(giftMeta?.id);
+  const sender = gift.senderName || (mine ? displayName : "Member");
+  const footerLines = formatClanGiftFooter(gift);
+
+  return (
+    <div className={`clan-chat-card clan-chat-card--gift ${mine ? "clan-chat-card--mine" : ""}`}>
+      {gift.flavor && <p className="clan-chat-gift-flavor">"{gift.flavor}"</p>}
+      <div className="clan-chat-gift-main">
+        <span className="clan-chat-gift-icon" aria-hidden>
+          {icon ? <img src={icon} alt="" /> : gift.emoji}
+        </span>
+        <div className="clan-chat-gift-copy">
+          <strong>
+            {mine
+              ? `You sent ${gift.giftName} to ${gift.recipientName}`
+              : `${sender} sent ${gift.giftName} to ${gift.recipientName}`}
+          </strong>
+          {gift.reward > 0 && (
+            <small className="clan-chat-gift-reward">Won {gift.reward} gold</small>
+          )}
+        </div>
+      </div>
+      {footerLines.length > 0 && (
+        <div className="clan-chat-gift-footer">
+          {footerLines.map((line) => (
+            <small key={line}>{line}</small>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClanChatMessageBody({ msg, mine, displayName }) {
+  const type = msg.message_type ?? "text";
+
+  if (type === "system") {
+    return (
+      <div className="clan-chat-system">
+        <span>{msg.message}</span>
+        <time>{formatTime(msg.created_at)}</time>
+      </div>
+    );
+  }
+
+  if (type === "gift") {
+    return (
+      <div className="clan-chat-msg-col clan-chat-msg-col--card">
+        {!mine && (
+          <ClanChatSenderName
+            name={msg.profile?.display_name ?? "Member"}
+            role={msg.role}
+          />
+        )}
+        <ClanChatGiftCard msg={msg} mine={mine} displayName={displayName} />
+        <time className="clan-chat-time-centered">{formatTime(msg.created_at)}</time>
+      </div>
+    );
+  }
+
+  return (
+    <div className="personal-chat-msg-col">
+      <div className={`personal-chat-bubble personal-chat-bubble--ref ${mine ? "personal-chat-bubble--mine" : ""}`}>
+        {!mine && (
+          <ClanChatSenderName
+            name={msg.profile?.display_name ?? "Member"}
+            role={msg.role}
+          />
+        )}
+        <span className="personal-chat-text">{msg.message}</span>
+      </div>
+      <time className="personal-chat-time-ref">{formatTime(msg.created_at)}</time>
+    </div>
+  );
 }
 
 export default function ClanChat({ clan, userId, displayName, onClose, onOpenProfile, onToast }) {
@@ -48,7 +164,12 @@ export default function ClanChat({ clan, userId, displayName, onClose, onOpenPro
       const msg = await sendClanMessage(clan.id, userId, text);
       setMessages((prev) => [
         ...prev,
-        { ...msg, profile: { display_name: displayName } },
+        {
+          ...msg,
+          message_type: msg.message_type ?? "text",
+          role: clan.membership?.role ?? "member",
+          profile: { display_name: displayName },
+        },
       ]);
     } catch (err) {
       onToast?.(err?.message ?? "Could not send");
@@ -86,6 +207,16 @@ export default function ClanChat({ clan, userId, displayName, onClose, onOpenPro
           {messages.map((m) => {
             const mine = m.user_id === userId;
             const name = m.profile?.display_name ?? (mine ? displayName : "Member");
+            const isSystem = (m.message_type ?? "text") === "system";
+
+            if (isSystem) {
+              return (
+                <div key={m.id} className="clan-chat-system-row">
+                  <ClanChatMessageBody msg={m} mine={mine} displayName={displayName} />
+                </div>
+              );
+            }
+
             return (
               <div
                 key={m.id}
@@ -106,13 +237,7 @@ export default function ClanChat({ clan, userId, displayName, onClose, onOpenPro
                     />
                   </button>
                 )}
-                <div className="personal-chat-msg-col">
-                  <div className={`personal-chat-bubble personal-chat-bubble--ref ${mine ? "personal-chat-bubble--mine" : ""}`}>
-                    {!mine && <strong className="clan-chat-sender">{name}</strong>}
-                    <span className="personal-chat-text">{m.message}</span>
-                  </div>
-                  <time className="personal-chat-time-ref">{formatTime(m.created_at)}</time>
-                </div>
+                <ClanChatMessageBody msg={m} mine={mine} displayName={displayName} />
               </div>
             );
           })}

@@ -1,7 +1,11 @@
 import { parseRoomInvite, parseClanInvite } from "./privateChat.js";
+import { formatClanChatPreview } from "./clanChatMessages.js";
 import { looksLikeGiftSystemMessage } from "./gifts.js";
 
-export function formatChatPreview(message, { senderName } = {}) {
+export function formatChatPreview(message, { senderName, clanMessage } = {}) {
+  if (clanMessage) {
+    return formatClanChatPreview(clanMessage, { senderName });
+  }
   if (!message) return "";
   const raw = String(message).trim();
   if (!raw) return "";

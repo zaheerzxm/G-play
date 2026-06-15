@@ -1,6 +1,7 @@
 import { charmTierFromTotal } from "./charmTiers.js";
 import { CLAN_TASK_DEFS, taskProgressValue, taskStatus } from "./gameTasks.js";
 import { loadProfilesForUserIds } from "./profile.js";
+import { clanMessageLooksSpoofed } from "./clanChatMessages.js";
 import { sendPrivateMessage } from "./privateChat.js";
 import { supabase } from "./supabase.js";
 import { addUserExp } from "./userLevels.js";
@@ -361,7 +362,7 @@ export async function loadClanChatThread(userId) {
 
   const { data, error } = await supabase
     .from("clan_messages")
-    .select("id, clan_id, user_id, message, created_at")
+    .select("id, clan_id, user_id, message, message_type, payload, created_at")
     .eq("clan_id", clan.id)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -377,21 +378,28 @@ export async function loadClanChatThread(userId) {
 
 export async function loadClanMessages(clanId, limit = 80) {
   if (!supabase || !clanId) return [];
-  const { data, error } = await supabase
-    .from("clan_messages")
-    .select("id, clan_id, user_id, message, created_at")
-    .eq("clan_id", clanId)
-    .order("created_at", { ascending: true })
-    .limit(limit);
+  const [{ data, error }, { data: memberRows, error: memberError }] = await Promise.all([
+    supabase
+      .from("clan_messages")
+      .select("id, clan_id, user_id, message, message_type, payload, created_at")
+      .eq("clan_id", clanId)
+      .order("created_at", { ascending: true })
+      .limit(limit),
+    supabase.from("clan_members").select("user_id, role").eq("clan_id", clanId),
+  ]);
   if (error) {
     if (missingClansTable(error)) return [];
     throw error;
   }
+  if (memberError && !missingClansTable(memberError)) throw memberError;
   const rows = data ?? [];
+  const roleMap = Object.fromEntries((memberRows ?? []).map((row) => [row.user_id, row.role]));
   const profiles = await loadProfilesForUserIds(rows.map((r) => r.user_id));
   return rows.map((r) => ({
     ...r,
+    message_type: r.message_type ?? "text",
     profile: profiles[r.user_id] ?? null,
+    role: roleMap[r.user_id] ?? "member",
   }));
 }
 
@@ -399,19 +407,34 @@ export async function sendClanMessage(clanId, userId, text) {
   if (!supabase) throw new Error("Supabase is not configured");
   const message = String(text ?? "").trim();
   if (!message) throw new Error("Message is empty");
+  if (clanMessageLooksSpoofed(message)) {
+    throw new Error("Message not allowed");
+  }
 
-  const { data, error } = await supabase
-    .from("clan_messages")
-    .insert({ clan_id: clanId, user_id: userId, message })
-    .select("id, clan_id, user_id, message, created_at")
-    .single();
+  const { data, error } = await supabase.rpc("send_clan_chat_message", {
+    p_clan_id: clanId,
+    p_message: message,
+  });
   if (error) {
     if (missingClansTable(error)) throw clansMissingError();
+    if (/send_clan_chat_message|schema cache|does not exist/i.test(String(error.message ?? ""))) {
+      const { data: legacy, error: legacyError } = await supabase
+        .from("clan_messages")
+        .insert({ clan_id: clanId, user_id: userId, message })
+        .select("id, clan_id, user_id, message, message_type, payload, created_at")
+        .single();
+      if (legacyError) {
+        if (missingClansTable(legacyError)) throw clansMissingError();
+        throw legacyError;
+      }
+      markClanTaskProgress(userId, clanId, "clan_chat", 1);
+      return { ...legacy, message_type: legacy.message_type ?? "text" };
+    }
     throw error;
   }
 
   markClanTaskProgress(userId, clanId, "clan_chat", 1);
-  return data;
+  return { ...(data ?? {}), message_type: data?.message_type ?? "text" };
 }
 
 export async function loadClanNews(clanId, scope = "clan") {
