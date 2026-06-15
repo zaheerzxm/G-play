@@ -111,9 +111,9 @@
 **Dependencies:** None  
 **Complexity:** XL  
 **Lineage:** GAP-039a  
-**Status:** Not Started  
+**Status:** In Progress  
 **Implemented In:** —  
-**Testing Notes:** —  
+**Testing Notes:** Phase A: `supabase/group-dm-migration.sql` + `src/groupChat.js` (schema, RPCs, API). UI deferred to later phases.  
 
 ---
 
