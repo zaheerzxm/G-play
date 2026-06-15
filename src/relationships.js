@@ -3,6 +3,7 @@ import { cpHeartLevelFromExp } from "./cpHeartTiers.js";
 import { loadProfilesForUserIds } from "./profile.js";
 import { areHorizontalSeatNeighbors } from "./roomSeats.js";
 import { supabase } from "./supabase.js";
+import { BFF_SLOT_BASE_DEFAULT, BFF_SLOT_MAX, isBffFamilyBondType } from "./bffSlots.js";
 
 /** Guard needed to propose CP (WePlay-style). */
 export const GUARD_PROPOSE_CP = 3000;
@@ -578,6 +579,78 @@ export async function loadGuardRankingForUser(targetUserId, limit = 50) {
     points: g.points,
     profile: profiles[g.userId] ?? null,
   }));
+}
+
+export { isBffFamilyBondType, BFF_FAMILY_BOND_TYPES } from "./bffSlots.js";
+
+/** Count active BFF-family bonds + slot limit from profile. */
+export async function loadBffSlotInfo(userId, excludeOtherId = null) {
+  if (!supabase || !userId) {
+    return { used: 0, limit: BFF_SLOT_BASE_DEFAULT, base: BFF_SLOT_BASE_DEFAULT, purchased: 0 };
+  }
+
+  const [{ data: profile }, bonds] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("bff_slot_base, bff_slots_purchased")
+      .eq("id", userId)
+      .maybeSingle(),
+    loadActiveBondsForUser(userId),
+  ]);
+
+  const base = Math.max(0, Number(profile?.bff_slot_base ?? BFF_SLOT_BASE_DEFAULT));
+  const purchased = Math.max(0, Number(profile?.bff_slots_purchased ?? 0));
+  const limit = Math.min(BFF_SLOT_MAX, base + purchased);
+  let used = (bonds ?? []).filter((b) => isBffFamilyBondType(b.bondType)).length;
+
+  if (excludeOtherId) {
+    const hasExcluded = (bonds ?? []).some(
+      (b) =>
+        isBffFamilyBondType(b.bondType) &&
+        (String(partnerUserId(b, userId)) === String(excludeOtherId)),
+    );
+    if (hasExcluded) used = Math.max(0, used - 1);
+  }
+
+  return { used, limit, base, purchased };
+}
+
+/** Locked BFF-family bonds awaiting slot unlock. */
+export async function loadBffLockedBonds(userId) {
+  if (!supabase || !userId) return [];
+  const { data, error } = await supabase.rpc("load_bff_locked_bonds", { p_user_id: userId });
+  if (error) throw error;
+  const rows = Array.isArray(data) ? data : [];
+  if (!rows.length) return [];
+
+  const partnerIds = rows.map((r) => r.partner_id).filter(Boolean);
+  const profiles = partnerIds.length ? await loadProfilesForUserIds(partnerIds) : {};
+
+  return rows.map((row) => {
+    const partnerId = row.partner_id;
+    const p = profiles[partnerId];
+    return {
+      id: row.id,
+      userA: row.user_a,
+      userB: row.user_b,
+      bondType: row.bond_type,
+      startedAt: row.started_at,
+      partnerId,
+      partnerName: p?.display_name ?? "Friend",
+      partnerAvatar: p?.avatar_url ?? null,
+    };
+  });
+}
+
+/** Unlock a locked BFF bond (coins deducted server-side). */
+export async function unlockBffBond(userId, otherUserId) {
+  if (!supabase) throw new Error("Supabase is not configured");
+  const { data, error } = await supabase.rpc("unlock_bff_bond", {
+    p_user_id: userId,
+    p_other_id: otherUserId,
+  });
+  if (error) throw error;
+  return data;
 }
 
 export async function loadActiveBondsForUser(userId) {

@@ -568,6 +568,7 @@ export default function UserFullProfileSheet({
             onOpenIntimateSpace?.(bond);
           }}
           onToast={onToast}
+          onCoinsChange={isSelf ? onCoinsChange : undefined}
         />
       )}
       {guardOpen && !hideGuardFromOthers && (

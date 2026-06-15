@@ -39,9 +39,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** GAP-071  
-**Status:** Not Started  
-**Implemented In:** —  
-**Testing Notes:** —  
+**Status:** Completed  
+**Implemented In:** pending commit / 2026-06-14  
+**Testing Notes:** Locked-bond model: accept BFF-family when slots full → status locked. BffSheet tabs My BFFs / To Unlock. unlock_bff_bond RPC deducts 500 coins server-side. Run supabase/bff-slots-migration.sql before testing. Invitation tab (FB-012) not included.  
 
 ---
 
