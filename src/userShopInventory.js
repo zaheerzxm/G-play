@@ -11,6 +11,12 @@ export function loadUserShopInventory(userId) {
   }
 }
 
+export function userOwnsShopItem(userId, itemId) {
+  return loadUserShopInventory(userId).some(
+    (row) => row.id === itemId && (row.quantity ?? 1) > 0,
+  );
+}
+
 export function addShopItemToInventory(userId, item) {
   if (!userId || !item?.id) return loadUserShopInventory(userId);
   const list = loadUserShopInventory(userId);
@@ -23,8 +29,11 @@ export function addShopItemToInventory(userId, item) {
       name: item.name,
       emoji: item.emoji ?? "🎁",
       category: item.category ?? "Items",
+      type: item.type ?? null,
       tag: item.tag ?? null,
       bg: item.bg ?? "#f0fdf4",
+      previewClass: item.previewClass ?? null,
+      source: item.source ?? null,
       quantity: 1,
       purchasedAt: Date.now(),
     });

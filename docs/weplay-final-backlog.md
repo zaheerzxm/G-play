@@ -57,9 +57,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** GAP-068  
-**Status:** Not Started  
-**Implemented In:** —  
-**Testing Notes:** —  
+**Status:** Completed  
+**Implemented In:** — / 2026-06-14  
+**Testing Notes:** Dedicated ChatBubbleShop (11 items: coin/VIP/Family). Purchases stored in localStorage via userShopInventory with type chat_bubble. VIP gated via effectiveVipLevel; Family via loadMyClan. Equip + chat rendering deferred to FB-074. No SQL migration.  
 
 ---
 

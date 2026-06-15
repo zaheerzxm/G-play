@@ -33,6 +33,7 @@ import ChurchSheet from "./ChurchSheet.jsx";
 import ClanHubSheet from "./clan/ClanHubSheet.jsx";
 import NearbySheet from "./NearbySheet.jsx";
 import ShopSheet from "./ShopSheet.jsx";
+import ChatBubbleShop from "./ChatBubbleShop.jsx";
 import VipSheet from "./VipSheet.jsx";
 import AdminPanelSheet from "./AdminPanelSheet.jsx";
 import DailyTaskSheet from "./DailyTaskSheet.jsx";
@@ -139,12 +140,14 @@ export default function LobbyScreen({
   const [churchOpen, setChurchOpen] = useState(false);
   const [nearbyOpen, setNearbyOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const [chatBubbleShopOpen, setChatBubbleShopOpen] = useState(false);
   const [coinShopOpen, setCoinShopOpen] = useState(false);
   const [vipOpen, setVipOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [dailyTasksOpen, setDailyTasksOpen] = useState(false);
   const [visitorsOpen, setVisitorsOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [inventoryFilterType, setInventoryFilterType] = useState(null);
   const [loveHomeOpen, setLoveHomeOpen] = useState(false);
   const [loveHomeBond, setLoveHomeBond] = useState(null);
   const [myHomeOpen, setMyHomeOpen] = useState(false);
@@ -1165,6 +1168,28 @@ export default function LobbyScreen({
           onClose={() => setShopOpen(false)}
           onOpenInventory={() => {
             setShopOpen(false);
+            setInventoryFilterType(null);
+            setInventoryOpen(true);
+          }}
+          onOpenChatBubbleShop={() => {
+            setShopOpen(false);
+            setChatBubbleShopOpen(true);
+          }}
+          onToast={showToast}
+        />
+      )}
+
+      {chatBubbleShopOpen && (
+        <ChatBubbleShop
+          userId={userId}
+          profile={profile}
+          coins={coins}
+          isSuperAdmin={isSuperAdmin}
+          onCoinsChange={onCoinsChange}
+          onClose={() => setChatBubbleShopOpen(false)}
+          onOpenInventory={() => {
+            setChatBubbleShopOpen(false);
+            setInventoryFilterType("chat_bubble");
             setInventoryOpen(true);
           }}
           onToast={showToast}
@@ -1174,7 +1199,11 @@ export default function LobbyScreen({
       {inventoryOpen && (
         <InventorySheet
           userId={userId}
-          onClose={() => setInventoryOpen(false)}
+          filterType={inventoryFilterType}
+          onClose={() => {
+            setInventoryOpen(false);
+            setInventoryFilterType(null);
+          }}
         />
       )}
 

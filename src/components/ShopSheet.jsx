@@ -10,8 +10,6 @@ import { formatCoins } from "../gifts.js";
 const CATEGORIES = ["Relationship", "Decorations", "Voice Room", "Items", "Games", "Clan"];
 
 const SHOP_ITEMS = [
-  { id: "bubble_star", name: "Star Bubble", emoji: "⭐", category: "Items", cost: 120, bg: "#fef9c3", tag: "From Activity" },
-  { id: "bubble_heart", name: "Heart Bubble", emoji: "💗", category: "Items", cost: 150, bg: "#fce7f3", tag: null },
   { id: "entry_fx", name: "Entry FX", emoji: "✨", category: "Items", cost: 300, bg: "#ede9fe", tag: "From Activity" },
   { id: "frame_sakura", name: "Sakura Frame", emoji: "🌸", category: "Decorations", cost: 500, bg: "#fdf2f8" },
   { id: "frame_ocean", name: "Ocean Frame", emoji: "🌊", category: "Decorations", cost: 800, bg: "#e0f2fe" },
@@ -38,6 +36,7 @@ export default function ShopSheet({
   onToast,
   onCoinsChange,
   onOpenInventory,
+  onOpenChatBubbleShop,
 }) {
   const [tab, setTab] = useState("Relationship");
   const [busy, setBusy] = useState(null);
@@ -89,6 +88,23 @@ export default function ShopSheet({
               <button type="button" className="shop-balance-topup" aria-label="Top up">+</button>
             </span>
           </div>
+
+          <button
+            type="button"
+            className="shop-chat-bubble-entry"
+            onClick={onOpenChatBubbleShop}
+          >
+            <span className="shop-chat-bubble-entry-icon" aria-hidden>
+              💬
+            </span>
+            <div className="shop-chat-bubble-entry-copy">
+              <strong>Chat Bubble</strong>
+              <span>Style your messages</span>
+            </div>
+            <span className="shop-chat-bubble-entry-chevron" aria-hidden>
+              ›
+            </span>
+          </button>
 
           <div className="shop-avatar-banner">
             <div className="shop-avatar-banner-art" aria-hidden>🧑‍🎤👧</div>
