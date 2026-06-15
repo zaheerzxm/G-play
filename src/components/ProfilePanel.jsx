@@ -48,6 +48,7 @@ const ME_MENU_GROUPS = [
   [
     { key: "language", Icon: IconHelp, label: "Language", hintKey: "language" },
     { key: "parental", Icon: IconCharm, label: "Parental control mode" },
+    { key: "privacy", Icon: IconBlocked, label: "Privacy" },
     { key: "help", Icon: IconHelp, label: "Help Center" },
     { key: "security", Icon: IconBlocked, label: "Security Center" },
   ],
@@ -84,6 +85,7 @@ export default function ProfilePanel({
   onOpenContributions,
   onOpenLanguage,
   onOpenParental,
+  onOpenPrivacy,
   onOpenHelpCenter,
   onOpenStats,
   onOpenSecurity,
@@ -159,6 +161,7 @@ export default function ProfilePanel({
     else if (key === "blocked") setBlockedOpen(true);
     else if (key === "language") onOpenLanguage?.();
     else if (key === "parental") onOpenParental?.();
+    else if (key === "privacy") onOpenPrivacy?.();
     else if (key === "help") onOpenHelpCenter?.();
     else if (key === "security") onOpenSecurity?.();
     else if (key === "admin") onOpenAdminPanel?.();

@@ -29,6 +29,12 @@ import { IconChats, IconClan, IconCopy, IconGift, UiIcon } from "./NavIcons.jsx"
 import ProfileBadgeRow from "./ProfileBadgeRow.jsx";
 import VipDisplayName from "./VipDisplayName.jsx";
 import { recordVisit } from "../visitors.js";
+import {
+  defaultPrivacySettings,
+  isPrivacyActive,
+  loadPrivacySettings,
+  privacyFromProfile,
+} from "../privacySettings.js";
 
 const CP_TYPES = new Set(["cp", "wedding", "choti_ghar_wali", "badi_ghar_wali"]);
 const BFF_TYPES = new Set(["bff", "bestie", "bro", "sis"]);
@@ -98,6 +104,8 @@ export default function UserFullProfileSheet({
   const [coupleBond, setCoupleBond] = useState(null);
   const [loveHomeOpen, setLoveHomeOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [targetPrivacy, setTargetPrivacy] = useState(() => privacyFromProfile(profile));
+  const [viewerPrivacy, setViewerPrivacy] = useState(() => privacyFromProfile(viewerProfile));
 
   const targetId = seat?.user_id ?? profile?.id;
   const isSelf = viewerId === targetId;
@@ -106,7 +114,11 @@ export default function UserFullProfileSheet({
   const displayName = seat?.nickname || profile?.display_name || "Guest";
   const initial = displayName.charAt(0).toUpperCase();
   const country = countryDisplay(profile?.country ?? profile?.country_code ?? seat?.country);
-  const locationLabel = formatProfileLocation(profile ?? { country: seat?.country });
+  const hideLocationFromOthers = !isSelf && isPrivacyActive(targetPrivacy, "hide_location");
+  const locationLabel = hideLocationFromOthers
+    ? null
+    : formatProfileLocation(profile ?? { country: seat?.country });
+  const hideGuardFromOthers = !isSelf && isPrivacyActive(targetPrivacy, "hide_guardian_board");
   const charmLine = charmTierFromTotal(merged.charm ?? 0);
 
   useEffect(() => {
@@ -116,14 +128,46 @@ export default function UserFullProfileSheet({
   }, [viewerId, targetId]);
 
   useEffect(() => {
+    if (profile?.privacy_settings != null) {
+      setTargetPrivacy(privacyFromProfile(profile));
+      return;
+    }
+    if (!targetId) return;
+    loadPrivacySettings(targetId)
+      .then(setTargetPrivacy)
+      .catch(() => setTargetPrivacy(defaultPrivacySettings()));
+  }, [targetId, profile?.privacy_settings]);
+
+  useEffect(() => {
+    if (viewerProfile?.privacy_settings != null) {
+      setViewerPrivacy(privacyFromProfile(viewerProfile));
+      return;
+    }
+    if (!viewerId || isSelf) return;
+    loadPrivacySettings(viewerId)
+      .then(setViewerPrivacy)
+      .catch(() => setViewerPrivacy(defaultPrivacySettings()));
+  }, [viewerId, viewerProfile?.privacy_settings, isSelf]);
+
+  useEffect(() => {
     if (!viewerId || !targetId || isSelf) return;
+    if (isPrivacyActive(viewerPrivacy, "incognito_visit")) return;
     recordVisit(targetId, {
       id: viewerId,
       display_name: viewerName || viewerProfile?.display_name,
       avatar_url: viewerProfile?.avatar_url,
       country: viewerProfile?.country,
     });
-  }, [viewerId, targetId, isSelf, viewerName, viewerProfile?.display_name, viewerProfile?.avatar_url, viewerProfile?.country]);
+  }, [
+    viewerId,
+    targetId,
+    isSelf,
+    viewerName,
+    viewerProfile?.display_name,
+    viewerProfile?.avatar_url,
+    viewerProfile?.country,
+    viewerPrivacy.incognito_visit,
+  ]);
 
   useEffect(() => {
     if (!viewerId || !targetId || isSelf) {
@@ -162,9 +206,19 @@ export default function UserFullProfileSheet({
         setMomentPreviews(rows.slice(0, 4));
       })
       .catch(() => {});
-    loadGuardRankingForUser(targetId, 5).then(setGuardRanking).catch(() => setGuardRanking([]));
     loadPrimaryCoupleBond(targetId).then(setCoupleBond).catch(() => setCoupleBond(null));
   }, [targetId]);
+
+  useEffect(() => {
+    if (!targetId) return;
+    if (!isSelf && isPrivacyActive(targetPrivacy, "hide_guardian_board")) {
+      setGuardRanking([]);
+      return;
+    }
+    loadGuardRankingForUser(targetId, 5)
+      .then(setGuardRanking)
+      .catch(() => setGuardRanking([]));
+  }, [targetId, isSelf, targetPrivacy.hide_guardian_board]);
 
   if (!seat) return null;
 
@@ -351,26 +405,28 @@ export default function UserFullProfileSheet({
             <BffPreviewCards bonds={bffBonds} max={3} />
           </ProfileSectionRow>
 
-          <ProfileSectionRow
-            label="Guard"
-            meta=""
-            onClick={() => setGuardOpen(true)}
-          >
-            {guardRanking.length > 0 && (
-              <div className="weplay-guard-thumb-row">
-                {guardRanking.slice(0, 5).map((g) => (
-                  <AvatarImg
-                    key={g.userId}
-                    src={g.profile?.avatar_url}
-                    fallback={g.profile?.display_name || "?"}
-                    className="weplay-guard-thumb weplay-guard-thumb--fallback"
-                    imgClassName="weplay-guard-thumb"
-                    title={g.profile?.display_name}
-                  />
-                ))}
-              </div>
-            )}
-          </ProfileSectionRow>
+          {!hideGuardFromOthers && (
+            <ProfileSectionRow
+              label="Guard"
+              meta=""
+              onClick={() => setGuardOpen(true)}
+            >
+              {guardRanking.length > 0 && (
+                <div className="weplay-guard-thumb-row">
+                  {guardRanking.slice(0, 5).map((g) => (
+                    <AvatarImg
+                      key={g.userId}
+                      src={g.profile?.avatar_url}
+                      fallback={g.profile?.display_name || "?"}
+                      className="weplay-guard-thumb weplay-guard-thumb--fallback"
+                      imgClassName="weplay-guard-thumb"
+                      title={g.profile?.display_name}
+                    />
+                  ))}
+                </div>
+              )}
+            </ProfileSectionRow>
+          )}
 
           {savedRooms.length > 0 && (
             <ProfileSectionRow
@@ -514,7 +570,7 @@ export default function UserFullProfileSheet({
           onToast={onToast}
         />
       )}
-      {guardOpen && (
+      {guardOpen && !hideGuardFromOthers && (
         <GuardSheet
           targetId={targetId}
           targetName={theirName}

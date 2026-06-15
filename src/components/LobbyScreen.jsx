@@ -61,6 +61,7 @@ import GiftPackFloater from "./GiftPackFloater.jsx";
 import PromoModal from "./PromoModal.jsx";
 import StatsSheet from "./StatsSheet.jsx";
 import SecurityCenterSheet from "./SecurityCenterSheet.jsx";
+import PrivacySettingsSheet from "./PrivacySettingsSheet.jsx";
 import { countNewVisitors } from "../visitors.js";
 import LanguageSheet from "./LanguageSheet.jsx";
 import ParentalControlSheet from "./ParentalControlSheet.jsx";
@@ -163,6 +164,7 @@ export default function LobbyScreen({
   const [promoOpen, setPromoOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [exploreUsers, setExploreUsers] = useState([]);
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const [createMomentOpen, setCreateMomentOpen] = useState(false);
@@ -1017,6 +1019,7 @@ export default function LobbyScreen({
               onOpenContributions={() => setRankingsOpen(true)}
               onOpenLanguage={() => setLanguageOpen(true)}
               onOpenParental={() => setParentalOpen(true)}
+              onOpenPrivacy={() => setPrivacyOpen(true)}
               onOpenHelpCenter={() => setHelpOpen(true)}
               onOpenStats={() => setStatsOpen(true)}
               onOpenSecurity={() => setSecurityOpen(true)}
@@ -1213,6 +1216,7 @@ export default function LobbyScreen({
           }}
           profile={playerCardFriend}
           viewerId={userId}
+          viewerProfile={profile}
           viewerName={profile.display_name}
           onClose={() => setPlayerCardFriend(null)}
           onMessage={() => {
@@ -1434,6 +1438,15 @@ export default function LobbyScreen({
           userId={userId}
           onClose={() => setSecurityOpen(false)}
           onToast={showToast}
+        />
+      )}
+      {privacyOpen && (
+        <PrivacySettingsSheet
+          userId={userId}
+          profile={profile}
+          onClose={() => setPrivacyOpen(false)}
+          onToast={showToast}
+          onProfileUpdate={onProfileUpdate}
         />
       )}
 

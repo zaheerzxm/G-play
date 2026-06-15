@@ -281,7 +281,7 @@ export async function loadProfilesForUserIds(userIds) {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_url, user_code, charm, user_level, user_exp, vip_level, vip_points, vip_expires_at, title, gender, country, bio, is_super_admin")
+    .select("id, display_name, avatar_url, user_code, charm, user_level, user_exp, vip_level, vip_points, vip_expires_at, title, gender, country, bio, is_super_admin, privacy_settings")
     .in("id", ids);
   if (error) throw error;
 

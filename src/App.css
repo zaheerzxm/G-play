@@ -30632,3 +30632,135 @@ button.G-play-chat-row {
   background: #18c8df;
   box-shadow: 0 0 0.45rem rgba(24, 200, 223, 0.45);
 }
+
+/* === Privacy settings (FB-009) === */
+
+.gplay-mobile-shell-backdrop--privacy {
+  z-index: 125;
+}
+
+.privacy-settings-page {
+  background: #f4f4f5;
+  color: #18181b;
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 720px);
+}
+
+.privacy-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  background: #fff;
+  border-bottom: 1px solid #e4e4e7;
+}
+
+.privacy-settings-header h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.privacy-settings-back,
+.privacy-settings-header-spacer {
+  width: 2rem;
+  flex-shrink: 0;
+}
+
+.privacy-settings-back {
+  border: none;
+  background: transparent;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #18181b;
+  cursor: pointer;
+}
+
+.privacy-settings-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 0.75rem 0 1.25rem;
+}
+
+.privacy-settings-note {
+  padding: 1rem;
+  color: #71717a;
+  font-size: 0.85rem;
+}
+
+.privacy-settings-group {
+  margin-bottom: 0.75rem;
+}
+
+.privacy-settings-group-title {
+  margin: 0;
+  padding: 0.35rem 1rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #71717a;
+}
+
+.privacy-settings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  border-block: 1px solid #e4e4e7;
+}
+
+.privacy-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #f4f4f5;
+}
+
+.privacy-settings-row:last-child {
+  border-bottom: none;
+}
+
+.privacy-settings-row-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.privacy-settings-row-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #18181b;
+}
+
+.privacy-settings-vip-badge {
+  margin-left: 0.35rem;
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #a855f7;
+  vertical-align: middle;
+}
+
+.privacy-settings-row-hint,
+.privacy-settings-row-lock {
+  font-size: 0.74rem;
+  color: #71717a;
+  line-height: 1.35;
+}
+
+.privacy-settings-row-lock {
+  color: #a855f7;
+}
+
+.chat-settings-toggle--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+

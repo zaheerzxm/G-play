@@ -1,8 +1,10 @@
 # WePlay → G-Play Final Implementation Backlog
 
-**Version:** Phase 3  
+**Version:** Phase 3 (Execution)  
 **Date:** 2026-06-14  
 **Total:** 135 items (FB-001–FB-135)
+
+> **Source of truth for implementation.** Historical audit docs live in [`archive/`](./archive/).
 
 ## Consolidation applied
 
@@ -37,6 +39,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** GAP-071  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -52,6 +57,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** GAP-068  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -67,6 +75,9 @@
 **Dependencies:** None  
 **Complexity:** XL  
 **Lineage:** GAP-084  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -82,6 +93,9 @@
 **Dependencies:** None  
 **Complexity:** XL  
 **Lineage:** GAP-039b / PARITY-004  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -97,6 +111,9 @@
 **Dependencies:** None  
 **Complexity:** XL  
 **Lineage:** GAP-039a  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -112,6 +129,9 @@
 **Dependencies:** FB-048  
 **Complexity:** XL  
 **Lineage:** GAP-011  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -127,6 +147,9 @@
 **Dependencies:** FB-004  
 **Complexity:** L  
 **Lineage:** PARITY-011  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -142,6 +165,9 @@
 **Dependencies:** FB-010  
 **Complexity:** XL  
 **Lineage:** GAP-041  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -157,6 +183,9 @@
 **Dependencies:** None  
 **Complexity:** XL  
 **Lineage:** PARITY-001  
+**Status:** Completed  
+**Implemented In:** pending commit / 2026-06-14  
+**Testing Notes:** Privacy sheet + 9 toggles persist to profiles.privacy_settings. Enforced: incognito visit (no visitor log), hide location (others' profile), hide guardian board (others' profile). VIP V6/V7/V8 gates UI-only until level met. Other toggles persist without consumer enforcement (by design). Run supabase/privacy-settings-migration.sql before testing.  
 
 ---
 
@@ -172,6 +201,9 @@
 **Dependencies:** FB-008  
 **Complexity:** XL  
 **Lineage:** GAP-091  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -187,6 +219,9 @@
 **Dependencies:** FB-023  
 **Complexity:** L  
 **Lineage:** GAP-015b / GAP-020b  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -202,6 +237,9 @@
 **Dependencies:** FB-001  
 **Complexity:** L  
 **Lineage:** GAP-072  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -217,6 +255,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-034b  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -232,6 +273,9 @@
 **Dependencies:** None  
 **Complexity:** XL  
 **Lineage:** PARITY-002  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -247,6 +291,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** GAP-111b / PARITY-008  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -262,6 +309,9 @@
 **Dependencies:** FB-019  
 **Complexity:** L  
 **Lineage:** PARITY-018  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -277,6 +327,9 @@
 **Dependencies:** FB-008  
 **Complexity:** L  
 **Lineage:** GAP-042  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -292,6 +345,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** GAP-016a / PARITY-003  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -307,6 +363,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** PARITY-007  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -322,6 +381,9 @@
 **Dependencies:** FB-029  
 **Complexity:** M  
 **Lineage:** GAP-087  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -337,6 +399,9 @@
 **Dependencies:** FB-006  
 **Complexity:** S  
 **Lineage:** GAP-106  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -352,6 +417,9 @@
 **Dependencies:** FB-009  
 **Complexity:** L  
 **Lineage:** PARITY-019  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -367,6 +435,9 @@
 **Dependencies:** FB-011  
 **Complexity:** M  
 **Lineage:** GAP-020a  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -382,6 +453,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-013  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -397,6 +471,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** PARITY-015  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -412,6 +489,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-067  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -427,6 +507,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-006  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -442,6 +525,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** GAP-061a  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -457,6 +543,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** GAP-081  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -472,6 +561,9 @@
 **Dependencies:** FB-008  
 **Complexity:** L  
 **Lineage:** GAP-048  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -487,6 +579,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-021  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -502,6 +597,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-029  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -517,6 +615,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-031  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -532,6 +633,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-051  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -547,6 +651,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-060  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -562,6 +669,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-061c / PARITY-012  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -577,6 +687,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** PARITY-016  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -592,6 +705,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-064  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -607,6 +723,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-076  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -622,6 +741,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** PARITY-005  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -637,6 +759,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-032  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -652,6 +777,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-075 / GAP-110  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -667,6 +795,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-045  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -682,6 +813,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-094  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -697,6 +831,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-018  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -712,6 +849,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** PARITY-009  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -727,6 +867,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-002  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -742,6 +885,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-012  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -757,6 +903,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-073  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -772,6 +921,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-019  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -787,6 +939,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** GAP-026  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -802,6 +957,9 @@
 **Dependencies:** FB-001  
 **Complexity:** M  
 **Lineage:** GAP-074  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -817,6 +975,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** PARITY-020  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -832,6 +993,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-016c  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -847,6 +1011,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-016b  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -862,6 +1029,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-049a  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -877,6 +1047,9 @@
 **Dependencies:** FB-009  
 **Complexity:** M  
 **Lineage:** GAP-095b  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -892,6 +1065,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-015a  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -907,6 +1083,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-059  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -922,6 +1101,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-096a  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -937,6 +1119,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-017  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -952,6 +1137,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-015c  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -967,6 +1155,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-083  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -982,6 +1173,9 @@
 **Dependencies:** FB-031  
 **Complexity:** S  
 **Lineage:** GAP-023  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -997,6 +1191,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-057b  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1012,6 +1209,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-057a  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1027,6 +1227,9 @@
 **Dependencies:** FB-048  
 **Complexity:** XS  
 **Lineage:** GAP-014  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1042,6 +1245,9 @@
 **Dependencies:** FB-009  
 **Complexity:** L  
 **Lineage:** PARITY-022  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1057,6 +1263,9 @@
 **Dependencies:** FB-119  
 **Complexity:** S  
 **Lineage:** PARITY-014  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1072,6 +1281,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-093  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1087,6 +1299,9 @@
 **Dependencies:** None  
 **Complexity:** L  
 **Lineage:** PARITY-010  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1102,6 +1317,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-058  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1117,6 +1335,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-078  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1132,6 +1353,9 @@
 **Dependencies:** FB-002  
 **Complexity:** M  
 **Lineage:** GAP-107  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1147,6 +1371,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** PARITY-024  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1162,6 +1389,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-065  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1177,6 +1407,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-095a  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1192,6 +1425,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-055  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1207,6 +1443,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-043  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1222,6 +1461,9 @@
 **Dependencies:** FB-009  
 **Complexity:** S  
 **Lineage:** GAP-096b  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1237,6 +1479,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-082  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1252,6 +1497,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-036  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1267,6 +1515,9 @@
 **Dependencies:** FB-029  
 **Complexity:** S  
 **Lineage:** GAP-040  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1282,6 +1533,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-070  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1297,6 +1551,9 @@
 **Dependencies:** FB-015  
 **Complexity:** S  
 **Lineage:** GAP-111a  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1312,6 +1569,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-080  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1327,6 +1587,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-052  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1342,6 +1605,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-037+109  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1357,6 +1623,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-028  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1372,6 +1641,9 @@
 **Dependencies:** FB-004  
 **Complexity:** S  
 **Lineage:** PARITY-023  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1387,6 +1659,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-049b / PARITY-017  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1402,6 +1677,9 @@
 **Dependencies:** FB-031  
 **Complexity:** S  
 **Lineage:** GAP-022  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1417,6 +1695,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-054  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1432,6 +1713,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-044  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1447,6 +1731,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-050  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1462,6 +1749,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** PARITY-006  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1477,6 +1767,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-086  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1492,6 +1785,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-047  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1507,6 +1803,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-033  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1522,6 +1821,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-085  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1537,6 +1839,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-053  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1552,6 +1857,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-038  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1567,6 +1875,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-090  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1582,6 +1893,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-035  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1597,6 +1911,9 @@
 **Dependencies:** FB-028  
 **Complexity:** M  
 **Lineage:** GAP-061b  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1612,6 +1929,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-024  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1627,6 +1947,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** PARITY-013  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1642,6 +1965,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-025  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1657,6 +1983,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-092  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1672,6 +2001,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-056  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1687,6 +2019,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-046  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1702,6 +2037,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-089  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1717,6 +2055,9 @@
 **Dependencies:** FB-028  
 **Complexity:** S  
 **Lineage:** GAP-062  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1732,6 +2073,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-079  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1747,6 +2091,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-069  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1762,6 +2109,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-066  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1777,6 +2127,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-088  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1792,6 +2145,9 @@
 **Dependencies:** FB-031  
 **Complexity:** M  
 **Lineage:** GAP-027  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1807,6 +2163,9 @@
 **Dependencies:** FB-031  
 **Complexity:** M  
 **Lineage:** GAP-030+102  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1822,6 +2181,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-108  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1837,6 +2199,9 @@
 **Dependencies:** FB-118  
 **Complexity:** S  
 **Lineage:** PARITY-025  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1852,6 +2217,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-099  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1867,6 +2235,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-010  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1882,6 +2253,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-005  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1897,6 +2271,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** PARITY-021  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1912,6 +2289,9 @@
 **Dependencies:** FB-047  
 **Complexity:** S  
 **Lineage:** GAP-009  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1927,6 +2307,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-101  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1942,6 +2325,9 @@
 **Dependencies:** None  
 **Complexity:** M  
 **Lineage:** GAP-100  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1957,6 +2343,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-003  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1972,6 +2361,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-104  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -1987,6 +2379,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-097  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -2002,6 +2397,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-004  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -2017,6 +2415,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-008  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -2032,6 +2433,9 @@
 **Dependencies:** None  
 **Complexity:** XS  
 **Lineage:** GAP-105  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
@@ -2047,6 +2451,9 @@
 **Dependencies:** None  
 **Complexity:** S  
 **Lineage:** GAP-098  
+**Status:** Not Started  
+**Implemented In:** —  
+**Testing Notes:** —  
 
 ---
 
