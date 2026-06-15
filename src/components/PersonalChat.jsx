@@ -98,6 +98,7 @@ export default function PersonalChat({
   onJoinRoom,
   onJoinClan,
   onClose,
+  onGroupCreated,
 }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -770,6 +771,10 @@ export default function PersonalChat({
           userId={userId}
           preselectedFriendId={friend?.id}
           onClose={() => setCreateGroupOpen(false)}
+          onCreated={async (created) => {
+            setCreateGroupOpen(false);
+            await onGroupCreated?.(created);
+          }}
           onToast={(msg) => setError(msg)}
         />
       )}

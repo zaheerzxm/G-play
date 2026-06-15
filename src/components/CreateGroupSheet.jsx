@@ -16,6 +16,7 @@ export default function CreateGroupSheet({
   userId,
   preselectedFriendId = null,
   onClose,
+  onCreated,
   onToast,
 }) {
   const [friends, setFriends] = useState([]);
@@ -84,9 +85,13 @@ export default function CreateGroupSheet({
     if (!canSubmit || !userId) return;
     setBusy(true);
     try {
-      await createGroup(userId, name.trim(), [...selectedIds]);
-      onToast?.("Group created");
+      const created = await createGroup(userId, name.trim(), [...selectedIds]);
       onClose?.();
+      if (onCreated) {
+        await onCreated(created);
+      } else {
+        onToast?.("Group created");
+      }
     } catch (err) {
       const message = err?.message ?? "Could not create group";
       onToast?.(message === groupChatMissingError().message ? message : message);

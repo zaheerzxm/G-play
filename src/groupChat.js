@@ -170,6 +170,12 @@ export async function loadGroupConversations(userId) {
   return rows;
 }
 
+export async function loadGroupConversation(userId, groupId) {
+  if (!userId || !groupId) return null;
+  const rows = await loadGroupConversations(userId);
+  return rows.find((row) => row.groupId === groupId) ?? null;
+}
+
 export async function loadGroupMessages(groupId, userId, limit = 80) {
   if (!supabase || !groupId || !userId) return [];
 

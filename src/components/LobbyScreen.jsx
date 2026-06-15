@@ -4,7 +4,7 @@ import { markAllConversationsRead } from "../privateChat.js";
 import { formatChatPreview, chatRowTags } from "../chatPreview.js";
 import { loadDmMuted } from "../dmChatPrefs.js";
 import { loadClanChatThread, loadClanByCode } from "../clans.js";
-import { loadGroupConversations } from "../groupChat.js";
+import { loadGroupConversation, loadGroupConversations } from "../groupChat.js";
 import ClanChat from "./ClanChat.jsx";
 import GroupChat from "./GroupChat.jsx";
 import {
@@ -401,6 +401,30 @@ export default function LobbyScreen({
     const rows = await loadGroupConversations(userId).catch(() => []);
     setGroupConversations(rows);
     return rows;
+  }
+
+  async function handleGroupCreated(created) {
+    const groupId = created?.id;
+    if (!groupId || !userId) return;
+
+    setChatFriend(null);
+
+    let conversation = await loadGroupConversation(userId, groupId).catch(() => null);
+    if (!conversation) {
+      const rows = await refreshGroupConversations();
+      conversation = rows.find((row) => row.groupId === groupId) ?? null;
+    } else {
+      setGroupConversations((prev) => {
+        const rest = prev.filter((row) => row.groupId !== groupId);
+        return [conversation, ...rest];
+      });
+    }
+
+    if (conversation) {
+      openGroupChat(conversation);
+    } else {
+      showToast("Group created — open it from Chats");
+    }
   }
 
   async function handleClanJoined(clan) {
@@ -1157,6 +1181,7 @@ export default function LobbyScreen({
           onJoinRoom={handleJoinRoomFromInvite}
           onJoinClan={handleJoinClanFromInvite}
           onClose={() => setChatFriend(null)}
+          onGroupCreated={handleGroupCreated}
         />
       )}
 
