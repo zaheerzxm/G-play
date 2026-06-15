@@ -106,6 +106,7 @@ export default function UserFullProfileSheet({
   const [menuOpen, setMenuOpen] = useState(false);
   const [targetPrivacy, setTargetPrivacy] = useState(() => privacyFromProfile(profile));
   const [viewerPrivacy, setViewerPrivacy] = useState(() => privacyFromProfile(viewerProfile));
+  const [viewerPrivacyReady, setViewerPrivacyReady] = useState(false);
 
   const targetId = seat?.user_id ?? profile?.id;
   const isSelf = viewerId === targetId;
@@ -139,17 +140,38 @@ export default function UserFullProfileSheet({
   }, [targetId, profile?.privacy_settings]);
 
   useEffect(() => {
-    if (viewerProfile?.privacy_settings != null) {
-      setViewerPrivacy(privacyFromProfile(viewerProfile));
+    if (isSelf) {
+      setViewerPrivacyReady(true);
       return;
     }
-    if (!viewerId || isSelf) return;
+    if (viewerProfile?.privacy_settings != null) {
+      setViewerPrivacy(privacyFromProfile(viewerProfile));
+      setViewerPrivacyReady(true);
+      return;
+    }
+    if (!viewerId) {
+      setViewerPrivacyReady(true);
+      return;
+    }
+    setViewerPrivacyReady(false);
+    let cancelled = false;
     loadPrivacySettings(viewerId)
-      .then(setViewerPrivacy)
-      .catch(() => setViewerPrivacy(defaultPrivacySettings()));
+      .then((settings) => {
+        if (!cancelled) setViewerPrivacy(settings);
+      })
+      .catch(() => {
+        if (!cancelled) setViewerPrivacy(defaultPrivacySettings());
+      })
+      .finally(() => {
+        if (!cancelled) setViewerPrivacyReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [viewerId, viewerProfile?.privacy_settings, isSelf]);
 
   useEffect(() => {
+    if (!viewerPrivacyReady) return;
     if (!viewerId || !targetId || isSelf) return;
     if (isPrivacyActive(viewerPrivacy, "incognito_visit")) return;
     recordVisit(targetId, {
@@ -159,6 +181,7 @@ export default function UserFullProfileSheet({
       country: viewerProfile?.country,
     });
   }, [
+    viewerPrivacyReady,
     viewerId,
     targetId,
     isSelf,
@@ -557,7 +580,6 @@ export default function UserFullProfileSheet({
       {bffOpen && (
         <BffSheet
           targetId={targetId}
-          targetName={theirName}
           viewerId={viewerId}
           isSelf={isSelf}
           elevated

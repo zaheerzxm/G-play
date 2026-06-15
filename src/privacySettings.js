@@ -42,15 +42,27 @@ export function canEnablePrivacyToggle(key, profile) {
   return effectiveVipLevel(profile) >= minVip;
 }
 
+/** Force VIP-gated toggles off when profile does not meet required level. */
+export function enforceVipPrivacyGates(settings, profile) {
+  const next = { ...settings };
+  for (const [key, minVip] of Object.entries(VIP_GATED_PRIVACY)) {
+    if (next[key] && effectiveVipLevel(profile) < minVip) {
+      next[key] = false;
+    }
+  }
+  return next;
+}
+
 export async function loadPrivacySettings(userId) {
   if (!supabase || !userId) return defaultPrivacySettings();
   const { data, error } = await supabase
     .from("profiles")
-    .select("privacy_settings")
+    .select("privacy_settings, vip_level, vip_points, vip_expires_at, is_super_admin")
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;
-  return normalizePrivacySettings(data?.privacy_settings);
+  const normalized = normalizePrivacySettings(data?.privacy_settings);
+  return enforceVipPrivacyGates(normalized, data ?? {});
 }
 
 export async function savePrivacySettings(userId, patch, profile) {
@@ -67,15 +79,17 @@ export async function savePrivacySettings(userId, patch, profile) {
     next[key] = value;
   }
 
+  const gated = enforceVipPrivacyGates(next, profile ?? {});
+
   const { data, error } = await supabase
     .from("profiles")
-    .update({ privacy_settings: next })
+    .update({ privacy_settings: gated })
     .eq("id", userId)
-    .select("privacy_settings")
+    .select("privacy_settings, vip_level, vip_points, vip_expires_at, is_super_admin")
     .single();
 
   if (error) throw error;
-  return normalizePrivacySettings(data?.privacy_settings);
+  return enforceVipPrivacyGates(normalizePrivacySettings(data?.privacy_settings), data ?? {});
 }
 
 export function isPrivacyActive(profileOrSettings, key) {

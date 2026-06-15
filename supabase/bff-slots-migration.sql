@@ -62,6 +62,9 @@ begin
   if p_user_id is null then
     return '[]'::jsonb;
   end if;
+  if auth.uid() is distinct from p_user_id then
+    raise exception 'Not authorized';
+  end if;
 
   select coalesce(
     jsonb_agg(
@@ -132,6 +135,12 @@ begin
     raise exception 'Not a BFF-family bond';
   end if;
 
+  partner_id := case when row_rec.user_a = p_user_id then row_rec.user_b else row_rec.user_a end;
+
+  if public.bff_slot_count(partner_id, pair_a, pair_b) >= public.bff_slot_limit(partner_id) then
+    raise exception 'partner_slot_full';
+  end if;
+
   select coins into wallet_coins
   from wallets
   where user_id = p_user_id::text
@@ -163,8 +172,6 @@ begin
       relationship_level = greatest(relationship_level, level, 1)
   where id = row_rec.id
   returning * into row_rec;
-
-  partner_id := case when row_rec.user_a = p_user_id then row_rec.user_b else row_rec.user_a end;
 
   return jsonb_build_object(
     'status', row_rec.status,

@@ -19,7 +19,6 @@ const BFF_TYPES = new Set(["bff", "bestie", "bro", "sis"]);
 
 export default function BffSheet({
   targetId,
-  targetName,
   viewerId,
   isSelf = false,
   elevated = false,
@@ -112,7 +111,12 @@ export default function BffSheet({
       await Promise.all([refreshActive(), refreshLocked(), refreshSlots()]);
       onToast?.(`BFF unlocked · ${BFF_UNLOCK_COIN_COST} coins`);
     } catch (err) {
-      onToast?.(err?.message ?? "Could not unlock BFF");
+      const msg = err?.message ?? "";
+      if (msg.includes("partner_slot_full")) {
+        onToast?.("Partner has no BFF slot available");
+      } else {
+        onToast?.(msg || "Could not unlock BFF");
+      }
     } finally {
       setUnlockBusyId(null);
     }
